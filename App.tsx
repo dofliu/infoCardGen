@@ -1,12 +1,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { generateInfographic, refineInfographicSection, generateFullInfographicImage, FileData } from './services/geminiService';
-import { InfographicData, SectionType, InfographicStyle, BrandConfig } from './types';
+import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio } from './types';
 import { InfographicView } from './components/InfographicView';
 import { EditModal } from './components/EditModal';
 import { SettingsModal } from './components/SettingsModal';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
@@ -30,6 +30,8 @@ const App: React.FC = () => {
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   
   const [selectedStyle, setSelectedStyle] = useState<InfographicStyle>('professional');
+  const [aspectRatio, setAspectRatio] = useState<InfographicAspectRatio>('vertical');
+
   const [customStylePrompt, setCustomStylePrompt] = useState<string>(''); // For Infinite Style Lab
   const [customColor, setCustomColor] = useState<string>(''); // For user overrides
 
@@ -190,7 +192,8 @@ const App: React.FC = () => {
           serviceFiles, 
           inputUrl, 
           tone,
-          customStylePrompt // Pass custom style prompt
+          customStylePrompt, // Pass custom style prompt
+          aspectRatio // Pass aspect ratio
         );
         setData(result);
       } else {
@@ -204,7 +207,8 @@ const App: React.FC = () => {
           serviceFiles, 
           inputUrl, 
           brandConfig,
-          customStylePrompt // Pass custom style prompt
+          customStylePrompt, // Pass custom style prompt
+          aspectRatio // Pass aspect ratio
         );
         if (imageUrl) {
           setFullImageUrl(imageUrl);
@@ -233,8 +237,13 @@ const App: React.FC = () => {
       });
       
       const imgData = canvas.toDataURL('image/png');
+      
+      // Calculate dimensions based on aspect ratio
+      const isLandscape = aspectRatio === 'horizontal';
+      const orientation = isLandscape ? 'landscape' : 'portrait';
+      
       const pdf = new jsPDF({
-        orientation: 'portrait',
+        orientation: orientation,
         unit: 'px',
         format: [canvas.width, canvas.height]
       });
@@ -304,6 +313,12 @@ const App: React.FC = () => {
     "Blueprint Technical (藍圖工程)", 
     "Paper Cutout Craft (剪紙藝術)",
     "Studio Ghibli Anime (吉卜力動畫)"
+  ];
+  
+  const ratioOptions: {id: InfographicAspectRatio, label: string, icon: React.ReactNode}[] = [
+    { id: 'vertical', label: '直式 (海報)', icon: <RectangleVertical size={16} /> },
+    { id: 'horizontal', label: '橫式 (簡報)', icon: <RectangleHorizontal size={16} /> },
+    { id: 'square', label: '方形 (IG)', icon: <Square size={16} /> },
   ];
 
   const hasContent = data || fullImageUrl;
@@ -414,6 +429,29 @@ const App: React.FC = () => {
                       <ImageIcon size={20} />
                       AI 全圖繪製 (Beta)
                     </button>
+                </div>
+                
+                {/* Aspect Ratio Selector */}
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                    <LayoutTemplate size={18} /> 版面比例 (Layout Ratio)
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                     {ratioOptions.map(option => (
+                        <button
+                           key={option.id}
+                           onClick={() => setAspectRatio(option.id)}
+                           className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all gap-2 ${
+                             aspectRatio === option.id
+                               ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                               : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                           }`}
+                        >
+                           {option.icon}
+                           <span className="text-sm font-medium">{option.label}</span>
+                        </button>
+                     ))}
+                  </div>
                 </div>
 
                 <div>
@@ -568,9 +606,11 @@ const App: React.FC = () => {
             )}
 
             {mode === 'image' && fullImageUrl && (
-              <div className="w-full max-w-2xl bg-white p-4 rounded-2xl shadow-2xl">
-                <h3 className="text-center text-lg font-bold mb-4 text-gray-700">AI 生成結果</h3>
-                <img src={fullImageUrl} alt="AI Generated Infographic" className="w-full rounded-lg shadow-inner" />
+              <div className="w-full max-w-4xl bg-white p-4 rounded-2xl shadow-2xl">
+                <h3 className="text-center text-lg font-bold mb-4 text-gray-700">AI 生成結果 ({aspectRatio === 'horizontal' ? '橫式' : aspectRatio === 'vertical' ? '直式' : '方形'})</h3>
+                <div className="w-full flex justify-center">
+                  <img src={fullImageUrl} alt="AI Generated Infographic" className="rounded-lg shadow-inner max-h-[80vh] w-auto" />
+                </div>
                 <div className="mt-4 flex justify-center">
                   <Button onClick={handleDownloadFullImage}>
                     <Download size={18} /> 下載圖片 (PNG)

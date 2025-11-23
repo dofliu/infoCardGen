@@ -32,10 +32,13 @@ export type InfographicStyle = 'professional' | 'comic' | 'digital' | 'watercolo
 
 export type InfographicLayout = 'grid' | 'timeline' | 'process' | 'comparison';
 
+export type InfographicAspectRatio = 'vertical' | 'horizontal' | 'square';
+
 export interface InfographicData {
   mainTitle: string;
   subtitle: string;
   layout: InfographicLayout;
+  aspectRatio?: InfographicAspectRatio; // New field
   comparisonLabels?: string[]; // [LeftLabel, RightLabel] e.g. ["Advantages", "Disadvantages"]
   sections: InfographicSection[];
   statistics: InfographicStat[];

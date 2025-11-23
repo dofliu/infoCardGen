@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { InfographicData, SectionType, InfographicSection, BrandConfig } from '../types';
+import { InfographicData, SectionType, InfographicSection, BrandConfig, InfographicAspectRatio } from '../types';
 import { IconDisplay } from './Icons';
 import { ChartRenderer } from './Charts';
 import { Pencil, ArrowDown, ArrowRightLeft } from 'lucide-react';
@@ -21,6 +21,38 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
   const activeThemeColor = (brandConfig?.isEnabled && brandConfig.brandColor) 
     ? brandConfig.brandColor 
     : (customThemeColor || data.themeColor);
+
+  const aspectRatio = data.aspectRatio || 'vertical';
+
+  // Define container widths and grid behaviors based on Aspect Ratio
+  const getLayoutDimensions = () => {
+    switch(aspectRatio) {
+      case 'horizontal':
+        return {
+          containerClass: "max-w-7xl aspect-[16/9]", // Wider container
+          gridCols: "grid-cols-1 md:grid-cols-3",
+          statCols: "grid-cols-2 md:grid-cols-4",
+          headerHeight: "min-h-[250px]",
+        };
+      case 'square':
+        return {
+          containerClass: "max-w-2xl aspect-[1/1]", // Square container
+          gridCols: "grid-cols-1 md:grid-cols-2",
+          statCols: "grid-cols-2",
+          headerHeight: "min-h-[200px]",
+        };
+      case 'vertical':
+      default:
+        return {
+          containerClass: "max-w-4xl min-h-[1000px] aspect-[3/4]", // Standard A4-ish
+          gridCols: "grid-cols-1 md:grid-cols-2",
+          statCols: "grid-cols-1 md:grid-cols-4",
+          headerHeight: "min-h-[300px]",
+        };
+    }
+  };
+
+  const layoutDims = getLayoutDimensions();
 
   // Style Definitions
   const getStyleConfig = () => {
@@ -129,7 +161,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
       type="section" 
       id={section.id} 
       content={section}
-      className={`p-6 flex flex-col md:flex-row gap-4 items-start ${styles.sectionCard} ${index % 3 === 0 && data.style !== 'minimalist' ? 'md:col-span-2' : ''}`}
+      className={`p-6 flex flex-col md:flex-row gap-4 items-start ${styles.sectionCard} ${index % 3 === 0 && data.style !== 'minimalist' && aspectRatio === 'vertical' ? 'md:col-span-2' : ''}`}
       style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}
     >
       <div className={`p-3 shrink-0 ${styles.iconBg}`} style={data.style === 'custom' ? { borderColor: activeThemeColor, color: activeThemeColor } : {}}>
@@ -146,6 +178,8 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
   );
 
   const renderTimelineSection = (section: InfographicSection, index: number) => {
+    // If horizontal, timeline might need different handling, but keeping vertical flow for simplicity in HTML view for now.
+    // Could switch to horizontal scrolling timeline later.
     const isLeft = index % 2 === 0;
     return (
       <div key={section.id} className="relative flex items-center justify-between md:justify-center w-full mb-8">
@@ -268,9 +302,9 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
   };
 
   return (
-    <div className={`w-full max-w-4xl mx-auto min-h-[1000px] flex flex-col overflow-hidden ${styles.container} ${data.style !== 'digital' ? 'text-gray-900' : 'text-gray-100'}`} style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}>
+    <div className={`w-full mx-auto flex flex-col overflow-hidden ${layoutDims.containerClass} ${styles.container} ${data.style !== 'digital' ? 'text-gray-900' : 'text-gray-100'}`} style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}>
       
-      <div className={`p-12 text-center relative ${styles.header}`} style={headerStyle}>
+      <div className={`p-12 text-center relative ${styles.header} ${layoutDims.headerHeight}`} style={headerStyle}>
         
         {data.style === 'professional' && (
           <>
@@ -280,7 +314,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
           </>
         )}
 
-        <div className="relative z-10">
+        <div className="relative z-10 h-full flex flex-col justify-center">
           <Editable type="title" id={null} content={data.mainTitle} className="inline-block mb-4 p-2 hover:bg-black/5 rounded border border-transparent hover:border-white/20">
             <h1 className={`text-5xl mb-2 ${styles.headerTitle} ${data.style === 'professional' || data.style === 'comic' ? 'text-white drop-shadow-md' : ''}`}>
               {data.mainTitle}
@@ -297,7 +331,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
       </div>
 
       <div className={`flex-grow flex flex-col ${styles.bgPattern}`}>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-8 -mt-8 relative z-20">
+        <div className={`grid ${layoutDims.statCols} gap-4 p-8 -mt-8 relative z-20`}>
           {data.statistics.map((stat) => (
             <Editable 
               key={stat.id} 
@@ -327,7 +361,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
           )}
 
           {data.layout === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className={`grid ${layoutDims.gridCols} gap-6`}>
               {data.sections.map((section, index) => renderGridSection(section, index))}
             </div>
           )}

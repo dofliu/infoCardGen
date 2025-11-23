@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig } from "../types";
+import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -153,7 +153,8 @@ export const generateFullInfographicImage = async (
   files: FileData[] = [],
   url?: string,
   brandConfig?: BrandConfig,
-  customStylePrompt?: string
+  customStylePrompt?: string,
+  aspectRatio: InfographicAspectRatio = 'vertical'
 ): Promise<string | undefined> => {
   
   let processedText = text;
@@ -178,13 +179,23 @@ export const generateFullInfographicImage = async (
     ? `Custom Style: "${customStylePrompt}"` 
     : `Style: ${style}`;
 
-  const promptText = `Create a high-quality, single-page vertical infographic in Traditional Chinese (Taiwan) based on the provided content.
+  // Map InfographicAspectRatio to API values and descriptive text
+  const ratioConfig = {
+    'vertical': { apiValue: '3:4', desc: 'Vertical Poster' },
+    'horizontal': { apiValue: '16:9', desc: 'Horizontal Presentation Slide' },
+    'square': { apiValue: '1:1', desc: 'Square Social Media Post' }
+  };
+  
+  const currentRatio = ratioConfig[aspectRatio];
+
+  const promptText = `Create a high-quality, single-page ${currentRatio.desc} infographic in Traditional Chinese (Taiwan) based on the provided content.
   
   ${styleDescription}
   ${brandingInstructions}
   
   Requirements:
-  - The image should look like a professional infographic poster.
+  - The image should look like a professional ${currentRatio.desc}.
+  - Aspect Ratio Target: ${currentRatio.apiValue}.
   - It must contain the Main Title and Subtitles in Traditional Chinese.
   - Include data visualization, icons, or illustrations relevant to the content.
   - The layout should be organized, easy to read, and visually striking.
@@ -210,8 +221,8 @@ export const generateFullInfographicImage = async (
       contents: { parts },
       config: {
         imageConfig: {
-          aspectRatio: '3:4', // Vertical poster format
-          imageSize: '2K' // High resolution
+          aspectRatio: currentRatio.apiValue, 
+          imageSize: '2K' 
         }
       }
     });
@@ -234,8 +245,9 @@ export const generateInfographic = async (
   style: InfographicStyle,
   files: FileData[] = [],
   url?: string,
-  toneOfVoice?: string, // New parameter for custom tone
-  customStylePrompt?: string // New parameter for Infinite Style Lab
+  toneOfVoice?: string, 
+  customStylePrompt?: string,
+  aspectRatio: InfographicAspectRatio = 'vertical'
 ): Promise<InfographicData> => {
   const styleInstructions = {
     professional: "Use a clean, corporate tone. Suggest deep blues, teals, or grays for hex color. Title must be impactful.",
@@ -258,6 +270,13 @@ export const generateInfographic = async (
     processedText += `\n\n[External URL Content Summary (${url})]:\n${urlSummary}`;
   }
 
+  let layoutHint = "";
+  if (aspectRatio === 'horizontal') {
+    layoutHint = "The user wants a Horizontal (Landscape) layout. Structure content to fit a wide format, potentially using more columns (e.g. 3 columns) for sections.";
+  } else if (aspectRatio === 'square') {
+    layoutHint = "The user wants a Square layout. Structure content to be compact and centered.";
+  }
+
   const textPrompt = `Analyze the following text (and attached files if any) and transform it into a structured infographic content plan. 
   
   **Requirements:**
@@ -268,6 +287,7 @@ export const generateInfographic = async (
      - If content implies a timeline/history, use 'timeline'.
      - If content implies steps/methods, use 'process'.
      - Otherwise, use 'grid'.
+     - ${layoutHint}
   4. **Charts:** Identify any numerical data suitable for visualization (e.g. market share, growth stats). Create 1-2 charts if applicable.
   5. **Visuals:** Identify key sections that need an illustration and provide a creative English 'imagePrompt' for them.
   6. **Comparison:** If layout is 'comparison', provide 'comparisonLabels' (e.g. ['Pros', 'Cons']) and split 'sections' evenly (first half Left, second half Right).
@@ -303,6 +323,7 @@ export const generateInfographic = async (
 
   const data = JSON.parse(response.text) as InfographicData;
   data.style = style;
+  data.aspectRatio = aspectRatio; // Store the requested ratio in data
 
   // 2. Generate Images in Parallel for sections that have imagePrompt
   const imagePromises = data.sections.map(async (section) => {
