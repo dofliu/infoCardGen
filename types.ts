@@ -63,3 +63,21 @@ export interface BrandConfig {
   brandColor: string;
   toneOfVoice: string; // e.g. "Professional Academic", "Friendly", "Strict"
 }
+
+export interface HistoryItem {
+  id: string;
+  timestamp: number;
+  title: string;
+  style: InfographicStyle;
+  mode: 'layout' | 'image';
+  data: InfographicData | null;
+  fullImageUrl: string | null;
+  // Context to restore inputs
+  inputText: string;
+  inputUrl: string;
+  selectedStyle: InfographicStyle;
+  aspectRatio: InfographicAspectRatio;
+  customStylePrompt: string;
+  customColor: string;
+  brandConfig?: BrandConfig;
+}

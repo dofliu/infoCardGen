@@ -76,9 +76,10 @@
     -   **方形 (1:1)**: 適合 Instagram 或社群媒體。
     -   **直式 (3:4)**: 適合行動裝置與海報 (預設)。
 
-### 第六階段：社群與協作 (Phase 6: Community & Collaboration) - [遠期]
-- [ ] **歷史紀錄**: 將生成的 JSON 存入 LocalStorage 或資料庫，讓使用者可以找回過去的作品。
-- [ ] **分享功能**: 產生可分享的連結，讓他人檢視或基於該架構進行 Remix。
+### 第六階段：社群與協作 (Phase 6: Community & Collaboration) - [完成]
+- [x] **歷史紀錄 (History Time Machine)**: 將生成的結果自動存入 LocalStorage，提供側邊欄檢視與一鍵還原。
+- [x] **專案匯出/匯入 (Project Export/Import)**: 產生 JSON 專案檔，支援跨裝置協作與備份。
+- [ ] **分享功能**: 產生可分享的連結，讓他人檢視或基於該架構進行 Remix (需後端支援)。
 
 ---
 

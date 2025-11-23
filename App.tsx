@@ -1,12 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { generateInfographic, refineInfographicSection, generateFullInfographicImage, FileData } from './services/geminiService';
-import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio } from './types';
+import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem } from './types';
 import { InfographicView } from './components/InfographicView';
 import { EditModal } from './components/EditModal';
 import { SettingsModal } from './components/SettingsModal';
+import { HistorySidebar } from './components/HistorySidebar';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
@@ -44,6 +45,11 @@ const App: React.FC = () => {
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // History & Persistence
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [mode, setMode] = useState<'layout' | 'image'>('layout');
   
   const infographicRef = useRef<HTMLDivElement>(null);
@@ -51,21 +57,158 @@ const App: React.FC = () => {
   const [editingSection, setEditingSection] = useState<{type: SectionType, id: string | null, content: any} | null>(null);
   const [isRefining, setIsRefining] = useState(false);
 
-  // Load Brand Config from Local Storage on Mount
+  // Load Brand Config & History from Local Storage on Mount
   useEffect(() => {
     const savedConfig = localStorage.getItem('infographai_brand_config');
     if (savedConfig) {
       try {
         setBrandConfig(JSON.parse(savedConfig));
-      } catch (e) {
-        console.error("Failed to load brand config", e);
-      }
+      } catch (e) { console.error("Failed to load brand config", e); }
+    }
+
+    const savedHistory = localStorage.getItem('infographai_history');
+    if (savedHistory) {
+      try {
+        setHistory(JSON.parse(savedHistory));
+      } catch (e) { console.error("Failed to load history", e); }
     }
   }, []);
 
   const handleSaveBrandConfig = (newConfig: BrandConfig) => {
     setBrandConfig(newConfig);
     localStorage.setItem('infographai_brand_config', JSON.stringify(newConfig));
+  };
+
+  const saveToHistory = (
+    resultData: InfographicData | null, 
+    resultImage: string | null,
+    currentMode: 'layout' | 'image'
+  ) => {
+    const title = resultData?.mainTitle || "Untitled Project";
+    
+    // Create history item
+    const newItem: HistoryItem = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      title: title.length > 30 ? title.substring(0, 30) + '...' : title,
+      style: selectedStyle,
+      mode: currentMode,
+      data: resultData,
+      fullImageUrl: resultImage, // Warning: Base64 images can be large
+      // Context inputs
+      inputText,
+      inputUrl,
+      selectedStyle,
+      aspectRatio,
+      customStylePrompt,
+      customColor,
+      brandConfig
+    };
+
+    setHistory(prev => {
+      // Limit to 10 items to prevent Quota Exceeded
+      const updated = [newItem, ...prev].slice(0, 10);
+      try {
+        localStorage.setItem('infographai_history', JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Storage quota exceeded. Could not save history to localStorage.", e);
+        // Fallback: Remove oldest item and try again, or just don't save to storage
+      }
+      return updated;
+    });
+  };
+
+  const handleLoadHistory = (item: HistoryItem) => {
+    // Restore state
+    setInputText(item.inputText || '');
+    setInputUrl(item.inputUrl || '');
+    setSelectedStyle(item.selectedStyle || 'professional');
+    setAspectRatio(item.aspectRatio || 'vertical');
+    setCustomStylePrompt(item.customStylePrompt || '');
+    setCustomColor(item.customColor || '');
+    setMode(item.mode || 'layout');
+    if (item.brandConfig) setBrandConfig(item.brandConfig);
+    
+    // Restore result
+    setData(item.data);
+    setFullImageUrl(item.fullImageUrl);
+    
+    setIsHistoryOpen(false);
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    setHistory(prev => {
+      const updated = prev.filter(item => item.id !== id);
+      localStorage.setItem('infographai_history', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleClearHistory = () => {
+    if(confirm("確定要清空所有歷史紀錄嗎？")) {
+      setHistory([]);
+      localStorage.removeItem('infographai_history');
+    }
+  };
+
+  const handleExportProject = () => {
+    const projectState = {
+      version: "1.0",
+      timestamp: Date.now(),
+      state: {
+        inputText, inputUrl, selectedStyle, aspectRatio, customStylePrompt, customColor, mode, brandConfig,
+        data, fullImageUrl
+      }
+    };
+    
+    const blob = new Blob([JSON.stringify(projectState, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `infographai-project-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportProject = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if(!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if(json.state) {
+          const s = json.state;
+          // Restore everything
+          setInputText(s.inputText || '');
+          setInputUrl(s.inputUrl || '');
+          setSelectedStyle(s.selectedStyle || 'professional');
+          setAspectRatio(s.aspectRatio || 'vertical');
+          setCustomStylePrompt(s.customStylePrompt || '');
+          setCustomColor(s.customColor || '');
+          setMode(s.mode || 'layout');
+          if (s.brandConfig) setBrandConfig(s.brandConfig);
+          setData(s.data || null);
+          setFullImageUrl(s.fullImageUrl || null);
+          
+          alert("專案匯入成功！");
+        } else {
+          throw new Error("Invalid project file structure");
+        }
+      } catch(e) {
+        console.error(e);
+        alert("匯入失敗：檔案格式錯誤或已損毀。");
+      } finally {
+        // Reset input
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,14 +220,12 @@ const App: React.FC = () => {
     const newAttachedFiles: AttachedFile[] = [];
     let extractedTextAccumulator = "";
     
-    // Process files sequentially
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const fileExtension = file.name.split('.').pop()?.toLowerCase();
       
       try {
         if (fileExtension === 'pdf') {
-          // Keep PDF as base64 attachment for Gemini
           const base64 = await readFileAsBase64(file);
           newAttachedFiles.push({
             id: Math.random().toString(36).substr(2, 9),
@@ -94,13 +235,11 @@ const App: React.FC = () => {
           });
         } 
         else if (fileExtension === 'docx') {
-          // Extract text from DOCX
           const arrayBuffer = await file.arrayBuffer();
           const result = await mammoth.extractRawText({ arrayBuffer });
           extractedTextAccumulator += `\n\n[File: ${file.name}]\n${result.value}`;
         } 
         else if (fileExtension === 'xlsx' || fileExtension === 'xls' || fileExtension === 'csv') {
-          // Extract text from Spreadsheet
           const arrayBuffer = await file.arrayBuffer();
           const workbook = XLSX.read(arrayBuffer);
           const firstSheetName = workbook.SheetNames[0];
@@ -109,7 +248,6 @@ const App: React.FC = () => {
           extractedTextAccumulator += `\n\n[File: ${file.name}]\n${csvText}`;
         }
         else if (['txt', 'md', 'json'].includes(fileExtension || '')) {
-          // Extract text from plain text files
           const text = await readFileAsText(file);
           extractedTextAccumulator += `\n\n[File: ${file.name}]\n${text}`;
         }
@@ -165,17 +303,15 @@ const App: React.FC = () => {
   const handleGenerate = async () => {
     if (!inputText.trim() && attachedFiles.length === 0 && !inputUrl.trim()) return;
     
-    // Validation for custom style
     if (selectedStyle === 'custom' && !customStylePrompt.trim()) {
       alert("請輸入您想要的風格描述 (Custom Style Description)");
       return;
     }
 
     setIsLoading(true);
-    setData(null);
-    setFullImageUrl(null);
-    setCustomColor(''); // Reset custom color on new gen
-
+    // DO NOT CLEAR DATA HERE - User wants to return to edit mode.
+    // Only clear if needed, but we want to show loading state.
+    
     const serviceFiles = attachedFiles.map(f => ({
       mimeType: f.mimeType,
       data: f.data
@@ -183,7 +319,6 @@ const App: React.FC = () => {
 
     try {
       if (mode === 'layout') {
-        // Pass toneOfVoice if brand config is enabled
         const tone = brandConfig.isEnabled ? brandConfig.toneOfVoice : undefined;
         
         const result = await generateInfographic(
@@ -192,10 +327,13 @@ const App: React.FC = () => {
           serviceFiles, 
           inputUrl, 
           tone,
-          customStylePrompt, // Pass custom style prompt
-          aspectRatio // Pass aspect ratio
+          customStylePrompt,
+          aspectRatio
         );
         setData(result);
+        setFullImageUrl(null);
+        // Save to history
+        saveToHistory(result, null, 'layout');
       } else {
         const apiKey = await window.aistudio?.hasSelectedApiKey();
         if (!apiKey) {
@@ -207,11 +345,14 @@ const App: React.FC = () => {
           serviceFiles, 
           inputUrl, 
           brandConfig,
-          customStylePrompt, // Pass custom style prompt
-          aspectRatio // Pass aspect ratio
+          customStylePrompt,
+          aspectRatio
         );
         if (imageUrl) {
           setFullImageUrl(imageUrl);
+          setData(null);
+          // Save to history
+          saveToHistory(null, imageUrl, 'image');
         } else {
           throw new Error("No image returned");
         }
@@ -238,7 +379,6 @@ const App: React.FC = () => {
       
       const imgData = canvas.toDataURL('image/png');
       
-      // Calculate dimensions based on aspect ratio
       const isLandscape = aspectRatio === 'horizontal';
       const orientation = isLandscape ? 'landscape' : 'portrait';
       
@@ -336,6 +476,42 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex gap-2 items-center">
+             {/* Import/Export Tools - Desktop Only */}
+             <div className="hidden lg:flex items-center gap-1 border-r border-gray-200 pr-2 mr-1">
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  onChange={handleImportProject} 
+                />
+                <button 
+                  onClick={handleImportClick}
+                  className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center gap-1 text-xs"
+                  title="匯入專案 (Import)"
+                >
+                  <FolderOpen size={18} />
+                </button>
+                <button 
+                  onClick={handleExportProject}
+                  className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center gap-1 text-xs"
+                  title="匯出專案 (Export)"
+                  disabled={!hasContent && !inputText}
+                >
+                  <Save size={18} />
+                </button>
+             </div>
+
+             {/* History Toggle */}
+             <button 
+                onClick={() => setIsHistoryOpen(true)}
+                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg flex items-center gap-1 mr-1 relative"
+                title="歷史紀錄 (History)"
+             >
+                <History size={20} />
+                {history.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>}
+             </button>
+
              {/* Settings Button */}
              <button 
                 onClick={() => setIsSettingsOpen(true)}
@@ -348,7 +524,7 @@ const App: React.FC = () => {
 
              {hasContent && (
                 <>
-                  <div className="hidden lg:flex bg-gray-100 rounded-lg p-1 mr-2 items-center">
+                  <div className="hidden xl:flex bg-gray-100 rounded-lg p-1 mr-2 items-center">
                    {styles.map(s => (
                      <button 
                         key={s.id}
@@ -403,7 +579,16 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <HistorySidebar 
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+        onLoad={handleLoadHistory}
+        onDelete={handleDeleteHistory}
+        onClear={handleClearHistory}
+      />
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300">
         {!hasContent ? (
           <div className="max-w-3xl mx-auto">
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
