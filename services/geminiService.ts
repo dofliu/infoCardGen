@@ -81,7 +81,7 @@ const infographicSchema: Schema = {
       }
     },
     conclusion: { type: Type.STRING, description: "A simplified footer or call to action" },
-    themeColor: { type: Type.STRING, description: "A dark or strong hex color code that fits the style and contrasts well with white text (e.g. #1e3a8a, #b91c1c, #047857). Avoid very light colors." }
+    themeColor: { type: Type.STRING, description: "A hex color code that fits the style and mood. For 'custom' style, pick a color that matches the user's description." }
   },
   required: ["mainTitle", "subtitle", "layout", "sections", "statistics", "conclusion", "themeColor"]
 };
@@ -109,13 +109,14 @@ export const summarizeUrlContent = async (url: string): Promise<string> => {
   }
 };
 
-const generateSectionImage = async (prompt: string, style: InfographicStyle): Promise<string | undefined> => {
+const generateSectionImage = async (prompt: string, style: InfographicStyle, customStylePrompt?: string): Promise<string | undefined> => {
   const stylePrompts = {
     professional: "flat vector illustration, corporate memphis style, clean, blue and teal tones, white background, professional business art, minimalist details, high quality",
     comic: "comic book style illustration, bold outlines, vibrant colors, pop art, dynamic action, halftone patterns, graphic novel style",
     digital: "futuristic digital art, neon glowing lines, cyberpunk aesthetic, dark background, 3d render, tech visualization, data stream visuals",
     watercolor: "watercolor painting, soft brush strokes, pastel colors, artistic, white paper texture background, dreamy, hand-painted",
-    minimalist: "minimalist line art, black and white, simple shapes, negative space, iconographic style, sophisticated"
+    minimalist: "minimalist line art, black and white, simple shapes, negative space, iconographic style, sophisticated",
+    custom: customStylePrompt ? `${customStylePrompt}, artistic visualization, high quality` : "high quality unique artistic style illustration"
   };
 
   const fullPrompt = `${prompt}. Style: ${stylePrompts[style]}. No text in image.`;
@@ -151,7 +152,8 @@ export const generateFullInfographicImage = async (
   style: InfographicStyle,
   files: FileData[] = [],
   url?: string,
-  brandConfig?: BrandConfig
+  brandConfig?: BrandConfig,
+  customStylePrompt?: string
 ): Promise<string | undefined> => {
   
   let processedText = text;
@@ -172,9 +174,13 @@ export const generateFullInfographicImage = async (
     `;
   }
 
+  const styleDescription = style === 'custom' && customStylePrompt 
+    ? `Custom Style: "${customStylePrompt}"` 
+    : `Style: ${style}`;
+
   const promptText = `Create a high-quality, single-page vertical infographic in Traditional Chinese (Taiwan) based on the provided content.
   
-  Style: ${style}
+  ${styleDescription}
   ${brandingInstructions}
   
   Requirements:
@@ -182,7 +188,7 @@ export const generateFullInfographicImage = async (
   - It must contain the Main Title and Subtitles in Traditional Chinese.
   - Include data visualization, icons, or illustrations relevant to the content.
   - The layout should be organized, easy to read, and visually striking.
-  - Use the "Style" specified above (e.g., if Comic, use comic book aesthetics).
+  - Use the "Style" specified above.
   
   Content Notes:
   ${processedText.substring(0, 6000)}`;
@@ -228,14 +234,16 @@ export const generateInfographic = async (
   style: InfographicStyle,
   files: FileData[] = [],
   url?: string,
-  toneOfVoice?: string // New parameter for custom tone
+  toneOfVoice?: string, // New parameter for custom tone
+  customStylePrompt?: string // New parameter for Infinite Style Lab
 ): Promise<InfographicData> => {
   const styleInstructions = {
     professional: "Use a clean, corporate tone. Suggest deep blues, teals, or grays for hex color. Title must be impactful.",
     comic: "Use a fun, energetic tone with punchy exclamations! Suggest bright pop-art colors (yellow, red, cyan) for hex color.",
     digital: "Use a tech-focused, futuristic tone. Suggest neon greens, purples, or dark mode hex colors.",
     watercolor: "Use a soft, artistic, and flowing tone. Suggest pastel colors for hex color.",
-    minimalist: "Use extremely concise, Zen-like language. Suggest monochromatic or earth tone hex colors."
+    minimalist: "Use extremely concise, Zen-like language. Suggest monochromatic or earth tone hex colors.",
+    custom: `Adopt a visual and writing style based on this description: "${customStylePrompt}". Choose a theme color that matches this style.`
   };
 
   const finalToneInstruction = toneOfVoice 
@@ -299,7 +307,7 @@ export const generateInfographic = async (
   // 2. Generate Images in Parallel for sections that have imagePrompt
   const imagePromises = data.sections.map(async (section) => {
     if (section.imagePrompt) {
-      const imageUrl = await generateSectionImage(section.imagePrompt, style);
+      const imageUrl = await generateSectionImage(section.imagePrompt, style, customStylePrompt);
       return { ...section, imageUrl };
     }
     return section;

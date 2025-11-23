@@ -21,7 +21,9 @@
 *   **模型**: `gemini-2.5-flash-image` (插圖), `gemini-3-pro-image-preview` (全圖)
 *   **插圖生成**:
     *   針對資訊圖表中的關鍵區塊，AI 會自動撰寫英文 Prompt。
-    *   根據選定的風格 (Professional, Comic, Digital, Watercolor, Minimalist) 自動調整繪圖指令。
+    *   根據選定的風格 (Professional, Comic, Digital, Watercolor, Minimalist, Custom) 自動調整繪圖指令。
+*   **無限風格實驗室 (Infinite Style Lab)**:
+    *   使用者可輸入任意風格描述（如「賽博龐克」），AI 自動轉換為對應的圖像生成 Prompt 與配色。
 *   **全圖生成 (Banana Pro)**:
     *   直接將內容轉換為單張高解析度 (2K) 的海報圖片，適合社群分享。
 
@@ -60,13 +62,10 @@
     -   設定預設 Prompt 後綴（如：「使用大學教授的口吻」、「活潑的社群小編語氣」）。
 - [x] **設定記憶 (Config Persistence)**: 使用 `localStorage` 記錄使用者的品牌設定，無需每次重新輸入。
 
-### 第四階段：無限風格與排版控制 (Phase 4: Infinite Styles & Layout Control) - [計劃中]
-- [ ] **無限風格實驗室 (AI Style Lab)**:
+### 第四階段：無限風格與排版控制 (Phase 4: Infinite Styles & Layout Control) - [完成]
+- [x] **無限風格實驗室 (AI Style Lab)**:
     -   **開放式 Prompt**: 允許使用者輸入風格關鍵字（如「賽博龐克」、「富春山居圖水墨風」），Gemini 動態生成 Image Prompt 與配色方案。
-    -   **特定畫風模擬**: 支援細分風格（如：美式漫畫 vs 日式漫畫、像素藝術、低多邊形）。
-- [ ] **進階排版控制 (Layout Control Center)**:
-    -   **畫布比例**: 支援 直式 (Portrait, 手機/海報)、橫式 (Landscape, PPT)、方形 (Square, IG)。
-    -   **欄位控制**: 強制指定單欄、雙欄或多欄排版。
+    -   **特定畫風模擬**: 支援 UI 預設細分風格（如：美式漫畫 vs 日式漫畫、像素藝術、低多邊形）。
 
 ### 第五階段：社群與協作 (Phase 5: Community & Collaboration) - [遠期]
 - [ ] **歷史紀錄**: 將生成的 JSON 存入 LocalStorage 或資料庫，讓使用者可以找回過去的作品。

@@ -73,6 +73,19 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
           bgPattern: "",
           imageContainer: "grayscale mb-4 rounded-sm"
         };
+      case 'custom':
+        // Adaptive style that uses activeThemeColor extensively for borders and highlights
+        return {
+          container: "font-sans bg-white border-2 rounded-xl",
+          header: "border-b-2 bg-opacity-10",
+          headerTitle: "font-bold tracking-tight text-gray-900",
+          statCard: "bg-white border-2 rounded-xl hover:-translate-y-1 transition-transform p-4 shadow-sm",
+          sectionCard: "bg-white border-2 rounded-xl p-4 shadow-sm",
+          timelineLine: "bg-gray-200",
+          iconBg: "rounded-full border-2 bg-white",
+          bgPattern: "",
+          imageContainer: "rounded-xl overflow-hidden border-2 mb-4"
+        };
       default: // Professional
         return {
           container: "font-sans bg-white shadow-xl rounded-xl",
@@ -90,9 +103,10 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
 
   const styles = getStyleConfig();
 
-  const Editable = ({ children, type, id, content, className = "" }: { children: React.ReactNode, type: SectionType, id: string | null, content: any, className?: string }) => (
+  const Editable = ({ children, type, id, content, className = "", style }: { children: React.ReactNode, type: SectionType, id: string | null, content: any, className?: string, style?: React.CSSProperties }) => (
     <div className={`group relative transition-all duration-200 cursor-pointer ${className}`}
-         onClick={() => onEdit(type, id, content)}>
+         onClick={() => onEdit(type, id, content)}
+         style={style}>
       {children}
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1.5 rounded-full shadow-sm border border-gray-200 text-indigo-600 z-20 data-html2canvas-ignore">
         <Pencil size={14} />
@@ -103,7 +117,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
   const SectionImage = ({ url }: { url?: string }) => {
     if (!url) return null;
     return (
-      <div className={`w-full aspect-video relative ${styles.imageContainer}`}>
+      <div className={`w-full aspect-video relative ${styles.imageContainer}`} style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}>
         <img src={url} alt="Section illustration" className="w-full h-full object-cover" />
       </div>
     );
@@ -116,8 +130,9 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
       id={section.id} 
       content={section}
       className={`p-6 flex flex-col md:flex-row gap-4 items-start ${styles.sectionCard} ${index % 3 === 0 && data.style !== 'minimalist' ? 'md:col-span-2' : ''}`}
+      style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}
     >
-      <div className={`p-3 shrink-0 ${styles.iconBg}`}>
+      <div className={`p-3 shrink-0 ${styles.iconBg}`} style={data.style === 'custom' ? { borderColor: activeThemeColor, color: activeThemeColor } : {}}>
         <IconDisplay type={section.iconType} className="w-6 h-6" />
       </div>
       <div className="flex-1 w-full">
@@ -136,7 +151,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
       <div key={section.id} className="relative flex items-center justify-between md:justify-center w-full mb-8">
         <div className={`w-full md:w-5/12 ${isLeft ? 'order-1 md:text-right' : 'order-3 hidden md:block'}`}>
            {isLeft && (
-             <Editable type="section" id={section.id} content={section} className={`p-5 ${styles.sectionCard}`}>
+             <Editable type="section" id={section.id} content={section} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
                <SectionImage url={section.imageUrl} />
                <h3 className={`text-lg font-bold mb-1 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>{section.title}</h3>
                <p className={`text-sm ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{section.content}</p>
@@ -146,14 +161,16 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
         
         <div className="absolute left-0 md:left-1/2 h-full w-0.5 -ml-[1px] top-0 bottom-0 flex flex-col items-center justify-center z-10 order-2">
           <div className={`w-1 h-full ${styles.timelineLine} absolute`}></div>
-          <div className={`relative w-10 h-10 flex items-center justify-center rounded-full border-4 ${data.style === 'digital' ? 'bg-gray-900 border-green-500' : 'bg-white border-indigo-100'} shadow-md z-20`}>
-            <IconDisplay type={section.iconType} className={`w-5 h-5 ${data.style === 'digital' ? 'text-green-400' : 'text-indigo-600'}`} />
+          <div className={`relative w-10 h-10 flex items-center justify-center rounded-full border-4 ${data.style === 'digital' ? 'bg-gray-900 border-green-500' : 'bg-white'} shadow-md z-20`}
+               style={data.style !== 'digital' ? { borderColor: activeThemeColor } : {}}
+          >
+            <IconDisplay type={section.iconType} className={`w-5 h-5 ${data.style === 'digital' ? 'text-green-400' : ''}`} style={data.style !== 'digital' ? { color: activeThemeColor } : {}} />
           </div>
         </div>
 
         <div className={`w-full pl-8 md:pl-0 md:w-5/12 ${isLeft ? 'order-3 hidden md:block' : 'order-1'}`}>
            {!isLeft && (
-             <Editable type="section" id={section.id} content={section} className={`p-5 ${styles.sectionCard}`}>
+             <Editable type="section" id={section.id} content={section} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
                <SectionImage url={section.imageUrl} />
                <h3 className={`text-lg font-bold mb-1 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>{section.title}</h3>
                <p className={`text-sm ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{section.content}</p>
@@ -161,7 +178,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
            )}
            <div className="md:hidden">
              {isLeft && (
-                <Editable type="section" id={section.id} content={section} className={`p-5 ${styles.sectionCard}`}>
+                <Editable type="section" id={section.id} content={section} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
                   <SectionImage url={section.imageUrl} />
                   <h3 className={`text-lg font-bold mb-1 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>{section.title}</h3>
                   <p className={`text-sm ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{section.content}</p>
@@ -180,6 +197,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
          id={section.id} 
          content={section} 
          className={`w-full p-6 ${styles.sectionCard} relative z-10`}
+         style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}
        >
          <div className="flex items-center gap-4 mb-3">
            <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-white ${data.style === 'comic' ? 'bg-black' : ''}`} style={{ backgroundColor: data.style !== 'comic' ? activeThemeColor : undefined }}>
@@ -245,11 +263,12 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
   };
 
   const headerStyle = {
-    backgroundColor: (data.style === 'professional' || data.style === 'watercolor' || data.style === 'comic') ? activeThemeColor : undefined
+    backgroundColor: (data.style === 'professional' || data.style === 'watercolor' || data.style === 'comic') ? activeThemeColor : (data.style === 'custom' ? `${activeThemeColor}10` : undefined),
+    borderColor: data.style === 'custom' ? activeThemeColor : undefined
   };
 
   return (
-    <div className={`w-full max-w-4xl mx-auto min-h-[1000px] flex flex-col overflow-hidden ${styles.container} ${data.style !== 'digital' ? 'text-gray-900' : 'text-gray-100'}`}>
+    <div className={`w-full max-w-4xl mx-auto min-h-[1000px] flex flex-col overflow-hidden ${styles.container} ${data.style !== 'digital' ? 'text-gray-900' : 'text-gray-100'}`} style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}>
       
       <div className={`p-12 text-center relative ${styles.header}`} style={headerStyle}>
         
@@ -286,6 +305,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
               id={stat.id} 
               content={stat}
               className={`p-4 text-center transition-transform flex flex-col justify-center min-h-[100px] ${styles.statCard}`}
+              style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}
             >
               <div className="text-3xl font-bold mb-1 break-words" style={{ color: data.style === 'digital' ? '#4ade80' : activeThemeColor }}>{stat.value}</div>
               <div className={`font-medium uppercase tracking-wide text-xs ${data.style === 'digital' ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</div>
@@ -316,7 +336,9 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
 
           {/* Charts Section */}
           {data.charts && data.charts.length > 0 && (
-            <div className={`p-6 rounded-xl ${data.style === 'digital' ? 'bg-gray-800/50 border border-green-500/20' : 'bg-white/50 border border-gray-100'} shadow-sm`}>
+            <div className={`p-6 rounded-xl ${data.style === 'digital' ? 'bg-gray-800/50 border border-green-500/20' : 'bg-white/50 border border-gray-100'} shadow-sm`}
+                 style={data.style === 'custom' ? { borderColor: activeThemeColor, borderWidth: 1 } : {}}
+            >
                <h3 className={`text-center text-xl font-bold mb-6 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>數據分析</h3>
                <div className="flex flex-wrap justify-center gap-8">
                  {data.charts.map(chart => (
@@ -334,7 +356,9 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
         </div>
       </div>
 
-      <div className={`p-8 text-center ${data.style === 'digital' ? 'bg-gray-950 text-gray-400' : 'bg-gray-900 text-gray-300'} ${data.style === 'comic' ? 'border-t-4 border-black bg-yellow-400 text-black font-bold' : ''}`}>
+      <div className={`p-8 text-center ${data.style === 'digital' ? 'bg-gray-950 text-gray-400' : 'bg-gray-900 text-gray-300'} ${data.style === 'comic' ? 'border-t-4 border-black bg-yellow-400 text-black font-bold' : ''}`}
+           style={data.style === 'custom' ? { backgroundColor: `${activeThemeColor}10`, color: '#333', borderTopWidth: 2, borderColor: activeThemeColor } : {}}
+      >
         <Editable type="conclusion" id={null} content={data.conclusion} className="inline-block p-4 border border-transparent hover:border-white/20 rounded">
           <p className="text-lg font-medium">{data.conclusion}</p>
         </Editable>

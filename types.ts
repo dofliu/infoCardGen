@@ -28,7 +28,7 @@ export interface InfographicChart {
   description?: string;
 }
 
-export type InfographicStyle = 'professional' | 'comic' | 'digital' | 'watercolor' | 'minimalist';
+export type InfographicStyle = 'professional' | 'comic' | 'digital' | 'watercolor' | 'minimalist' | 'custom';
 
 export type InfographicLayout = 'grid' | 'timeline' | 'process' | 'comparison';
 

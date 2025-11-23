@@ -6,7 +6,7 @@ import { InfographicView } from './components/InfographicView';
 import { EditModal } from './components/EditModal';
 import { SettingsModal } from './components/SettingsModal';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   
   const [selectedStyle, setSelectedStyle] = useState<InfographicStyle>('professional');
+  const [customStylePrompt, setCustomStylePrompt] = useState<string>(''); // For Infinite Style Lab
   const [customColor, setCustomColor] = useState<string>(''); // For user overrides
 
   // Personal Branding Config
@@ -162,6 +163,12 @@ const App: React.FC = () => {
   const handleGenerate = async () => {
     if (!inputText.trim() && attachedFiles.length === 0 && !inputUrl.trim()) return;
     
+    // Validation for custom style
+    if (selectedStyle === 'custom' && !customStylePrompt.trim()) {
+      alert("請輸入您想要的風格描述 (Custom Style Description)");
+      return;
+    }
+
     setIsLoading(true);
     setData(null);
     setFullImageUrl(null);
@@ -177,7 +184,14 @@ const App: React.FC = () => {
         // Pass toneOfVoice if brand config is enabled
         const tone = brandConfig.isEnabled ? brandConfig.toneOfVoice : undefined;
         
-        const result = await generateInfographic(inputText, selectedStyle, serviceFiles, inputUrl, tone);
+        const result = await generateInfographic(
+          inputText, 
+          selectedStyle, 
+          serviceFiles, 
+          inputUrl, 
+          tone,
+          customStylePrompt // Pass custom style prompt
+        );
         setData(result);
       } else {
         const apiKey = await window.aistudio?.hasSelectedApiKey();
@@ -189,7 +203,8 @@ const App: React.FC = () => {
           selectedStyle, 
           serviceFiles, 
           inputUrl, 
-          brandConfig // Pass full brand config to image generator
+          brandConfig,
+          customStylePrompt // Pass custom style prompt
         );
         if (imageUrl) {
           setFullImageUrl(imageUrl);
@@ -278,6 +293,17 @@ const App: React.FC = () => {
     { id: 'digital', label: '數位 Digital' },
     { id: 'watercolor', label: '水彩 Watercolor' },
     { id: 'minimalist', label: '極簡 Minimalist' },
+    { id: 'custom', label: '自訂 Custom (Style Lab)' },
+  ];
+
+  const stylePresets = [
+    "Cyberpunk Neon (賽博龐克)", 
+    "Pixel Art 8-bit (像素風)", 
+    "Japanese Ukiyo-e (浮世繪)", 
+    "Vintage 1950s Poster (復古海報)", 
+    "Blueprint Technical (藍圖工程)", 
+    "Paper Cutout Craft (剪紙藝術)",
+    "Studio Ghibli Anime (吉卜力動畫)"
   ];
 
   const hasContent = data || fullImageUrl;
@@ -353,8 +379,8 @@ const App: React.FC = () => {
                    </Button>
                  )}
 
-                 <Button variant="primary" onClick={handleGenerate} isLoading={isLoading} title="重新產生">
-                   <RefreshCw size={16} /> <span className="hidden sm:inline">重新產生</span>
+                 <Button variant="primary" onClick={() => { setData(null); setFullImageUrl(null); }} title="修改並重新產生">
+                   <Pencil size={16} /> <span className="hidden sm:inline">修改並重新產生</span>
                  </Button>
                 </>
              )}
@@ -394,7 +420,7 @@ const App: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                     <Palette size={18} /> 選擇視覺風格
                   </label>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {styles.map(s => (
                       <button 
                         key={s.id}
@@ -409,6 +435,40 @@ const App: React.FC = () => {
                       </button>
                     ))}
                   </div>
+
+                  {/* Infinite Style Lab UI */}
+                  {selectedStyle === 'custom' && (
+                    <div className="mt-4 p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 animate-in fade-in slide-in-from-top-2">
+                       <label className="block text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                         <Sparkles size={14} className="text-indigo-600" /> 
+                         無限風格實驗室 (Infinite Style Lab)
+                       </label>
+                       
+                       <div className="flex flex-wrap gap-2 mb-3">
+                         {stylePresets.map(preset => (
+                           <button 
+                             key={preset} 
+                             onClick={() => setCustomStylePrompt(preset)} 
+                             className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors shadow-sm"
+                           >
+                             {preset}
+                           </button>
+                         ))}
+                       </div>
+
+                       <input 
+                         type="text" 
+                         value={customStylePrompt} 
+                         onChange={(e) => setCustomStylePrompt(e.target.value)}
+                         className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white shadow-sm"
+                         placeholder="輸入任何風格描述 (e.g. 復古黑膠唱片風格, 霓虹賽博龐克, 剪紙藝術...)"
+                         autoFocus
+                       />
+                       <p className="text-xs text-gray-500 mt-2">
+                         AI 將根據您的描述自動調整配色、插圖風格與文字語氣。
+                       </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* URL Input */}
@@ -494,7 +554,7 @@ const App: React.FC = () => {
             {mode === 'layout' && data && (
               <>
                 <div className="bg-blue-50 text-blue-800 px-6 py-3 rounded-full text-sm font-medium flex items-center gap-2 border border-blue-100 shadow-sm">
-                  <PencilIcon /> 將滑鼠移至任何區塊即可進行 AI 修改與修正
+                  <Pencil size={16} /> 將滑鼠移至任何區塊即可進行 AI 修改與修正
                 </div>
                 <div ref={infographicRef} className="w-full flex justify-center">
                   <InfographicView 
@@ -542,11 +602,5 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-const PencilIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-  </svg>
-);
 
 export default App;
