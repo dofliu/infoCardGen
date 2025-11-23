@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { InfographicData, SectionType, InfographicStyle, InfographicSection } from "../types";
+import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -150,7 +150,8 @@ export const generateFullInfographicImage = async (
   text: string, 
   style: InfographicStyle,
   files: FileData[] = [],
-  url?: string
+  url?: string,
+  brandConfig?: BrandConfig
 ): Promise<string | undefined> => {
   
   let processedText = text;
@@ -161,9 +162,21 @@ export const generateFullInfographicImage = async (
     processedText += `\n\n[External URL Content Summary (${url})]:\n${urlSummary}`;
   }
 
+  let brandingInstructions = "";
+  if (brandConfig?.isEnabled) {
+    brandingInstructions = `
+    STRICT BRANDING REQUIREMENTS:
+    1. Primary Color: You MUST use ${brandConfig.brandColor} as the dominant color for headers and accents.
+    2. Tone of Voice: The text and visual mood MUST reflect a "${brandConfig.toneOfVoice}" persona.
+    3. Footer Signature: You MUST explicitly include the text "${brandConfig.footerText}" at the very bottom of the image as a footer or watermark.
+    `;
+  }
+
   const promptText = `Create a high-quality, single-page vertical infographic in Traditional Chinese (Taiwan) based on the provided content.
   
   Style: ${style}
+  ${brandingInstructions}
+  
   Requirements:
   - The image should look like a professional infographic poster.
   - It must contain the Main Title and Subtitles in Traditional Chinese.
@@ -214,7 +227,8 @@ export const generateInfographic = async (
   text: string, 
   style: InfographicStyle,
   files: FileData[] = [],
-  url?: string
+  url?: string,
+  toneOfVoice?: string // New parameter for custom tone
 ): Promise<InfographicData> => {
   const styleInstructions = {
     professional: "Use a clean, corporate tone. Suggest deep blues, teals, or grays for hex color. Title must be impactful.",
@@ -223,6 +237,10 @@ export const generateInfographic = async (
     watercolor: "Use a soft, artistic, and flowing tone. Suggest pastel colors for hex color.",
     minimalist: "Use extremely concise, Zen-like language. Suggest monochromatic or earth tone hex colors."
   };
+
+  const finalToneInstruction = toneOfVoice 
+    ? `Adopt the following specific tone/persona: "${toneOfVoice}".` 
+    : styleInstructions[style];
 
   let processedText = text;
 
@@ -236,7 +254,7 @@ export const generateInfographic = async (
   
   **Requirements:**
   1. **Language:** Output MUST be in **Traditional Chinese (Taiwan)**.
-  2. **Style:** The visual and writing style should be **"${style}"**. ${styleInstructions[style]}
+  2. **Tone & Style:** The visual and writing style should be **"${style}"**. ${finalToneInstruction}
   3. **Structure Analysis:**
      - If content involves a direct comparison (Pros vs Cons, Before vs After), use 'comparison'.
      - If content implies a timeline/history, use 'timeline'.

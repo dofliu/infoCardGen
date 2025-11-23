@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { InfographicData, SectionType, InfographicSection } from '../types';
+import { InfographicData, SectionType, InfographicSection, BrandConfig } from '../types';
 import { IconDisplay } from './Icons';
 import { ChartRenderer } from './Charts';
 import { Pencil, ArrowDown, ArrowRightLeft } from 'lucide-react';
@@ -9,12 +9,18 @@ interface Props {
   data: InfographicData;
   onEdit: (type: SectionType, id: string | null, currentContent: any) => void;
   customThemeColor?: string; // New prop for color override
+  brandConfig?: BrandConfig; // Pass brand config to render footer and force color
 }
 
-export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColor }) => {
+export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColor, brandConfig }) => {
   
-  // Use custom color if provided, otherwise use AI data.themeColor
-  const activeThemeColor = customThemeColor || data.themeColor;
+  // Logic: 
+  // 1. If Brand Config is Enabled, use Brand Color.
+  // 2. Else if customThemeColor (user picked in UI) is present, use it.
+  // 3. Else use data.themeColor (AI generated).
+  const activeThemeColor = (brandConfig?.isEnabled && brandConfig.brandColor) 
+    ? brandConfig.brandColor 
+    : (customThemeColor || data.themeColor);
 
   // Style Definitions
   const getStyleConfig = () => {
@@ -333,6 +339,13 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
           <p className="text-lg font-medium">{data.conclusion}</p>
         </Editable>
       </div>
+
+      {/* FIXED FOOTER for Personal Branding */}
+      {brandConfig?.isEnabled && brandConfig.footerText && (
+         <div className="p-4 text-center border-t text-sm opacity-60 font-medium" style={{ backgroundColor: activeThemeColor, color: data.style === 'digital' ? '#111827' : '#fff' }}>
+           {brandConfig.footerText}
+         </div>
+      )}
     </div>
   );
 };

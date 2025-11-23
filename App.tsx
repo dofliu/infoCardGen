@@ -1,11 +1,12 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { generateInfographic, refineInfographicSection, generateFullInfographicImage, FileData } from './services/geminiService';
-import { InfographicData, SectionType, InfographicStyle } from './types';
+import { InfographicData, SectionType, InfographicStyle, BrandConfig } from './types';
 import { InfographicView } from './components/InfographicView';
 import { EditModal } from './components/EditModal';
+import { SettingsModal } from './components/SettingsModal';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
@@ -31,12 +32,38 @@ const App: React.FC = () => {
   const [selectedStyle, setSelectedStyle] = useState<InfographicStyle>('professional');
   const [customColor, setCustomColor] = useState<string>(''); // For user overrides
 
+  // Personal Branding Config
+  const [brandConfig, setBrandConfig] = useState<BrandConfig>({
+    isEnabled: false,
+    footerText: '',
+    brandColor: '#4f46e5',
+    toneOfVoice: ''
+  });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   const [mode, setMode] = useState<'layout' | 'image'>('layout');
   
   const infographicRef = useRef<HTMLDivElement>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<{type: SectionType, id: string | null, content: any} | null>(null);
   const [isRefining, setIsRefining] = useState(false);
+
+  // Load Brand Config from Local Storage on Mount
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('infographai_brand_config');
+    if (savedConfig) {
+      try {
+        setBrandConfig(JSON.parse(savedConfig));
+      } catch (e) {
+        console.error("Failed to load brand config", e);
+      }
+    }
+  }, []);
+
+  const handleSaveBrandConfig = (newConfig: BrandConfig) => {
+    setBrandConfig(newConfig);
+    localStorage.setItem('infographai_brand_config', JSON.stringify(newConfig));
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -147,14 +174,23 @@ const App: React.FC = () => {
 
     try {
       if (mode === 'layout') {
-        const result = await generateInfographic(inputText, selectedStyle, serviceFiles, inputUrl);
+        // Pass toneOfVoice if brand config is enabled
+        const tone = brandConfig.isEnabled ? brandConfig.toneOfVoice : undefined;
+        
+        const result = await generateInfographic(inputText, selectedStyle, serviceFiles, inputUrl, tone);
         setData(result);
       } else {
         const apiKey = await window.aistudio?.hasSelectedApiKey();
         if (!apiKey) {
            await window.aistudio?.openSelectKey();
         }
-        const imageUrl = await generateFullInfographicImage(inputText, selectedStyle, serviceFiles, inputUrl);
+        const imageUrl = await generateFullInfographicImage(
+          inputText, 
+          selectedStyle, 
+          serviceFiles, 
+          inputUrl, 
+          brandConfig // Pass full brand config to image generator
+        );
         if (imageUrl) {
           setFullImageUrl(imageUrl);
         } else {
@@ -258,60 +294,71 @@ const App: React.FC = () => {
             <span className="font-bold text-xl tracking-tight text-gray-800 sm:hidden">IGAI</span>
           </div>
           
-          {hasContent && (
-             <div className="flex gap-2 items-center">
-                {/* Style Selector */}
-                <div className="hidden lg:flex bg-gray-100 rounded-lg p-1 mr-2 items-center">
-                 {styles.map(s => (
-                   <button 
-                      key={s.id}
-                      onClick={() => {
-                        if (selectedStyle !== s.id) {
-                          setSelectedStyle(s.id);
-                        }
-                      }}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${selectedStyle === s.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                   >
-                     {s.label}
-                   </button>
-                 ))}
-               </div>
+          <div className="flex gap-2 items-center">
+             {/* Settings Button */}
+             <button 
+                onClick={() => setIsSettingsOpen(true)}
+                className={`p-2 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium ${brandConfig.isEnabled ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'}`}
+                title="個人品牌設定"
+             >
+                <UserCircle size={20} />
+                <span className="hidden sm:inline">設定</span>
+             </button>
 
-                {/* Color Picker Override */}
-                {mode === 'layout' && (
-                  <div className="flex items-center mr-2 border-r pr-2 h-8">
-                     <label title="自訂主題色" className="cursor-pointer bg-gray-100 hover:bg-gray-200 p-1.5 rounded-md flex items-center">
-                        <input 
-                          type="color" 
-                          value={customColor || data?.themeColor || '#4f46e5'} 
-                          onChange={(e) => setCustomColor(e.target.value)}
-                          className="w-5 h-5 cursor-pointer border-none p-0 bg-transparent" 
-                        />
-                     </label>
-                  </div>
-                )}
+             {hasContent && (
+                <>
+                  <div className="hidden lg:flex bg-gray-100 rounded-lg p-1 mr-2 items-center">
+                   {styles.map(s => (
+                     <button 
+                        key={s.id}
+                        onClick={() => {
+                          if (selectedStyle !== s.id) {
+                            setSelectedStyle(s.id);
+                          }
+                        }}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${selectedStyle === s.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                     >
+                       {s.label}
+                     </button>
+                   ))}
+                 </div>
 
-               <Button variant="secondary" onClick={() => { setData(null); setFullImageUrl(null); setInputText(''); setAttachedFiles([]); setInputUrl(''); }} className="hidden md:flex">
-                 新專案
-               </Button>
-               
-               {mode === 'layout' && data && (
-                 <Button variant="outline" onClick={handleDownloadPDF} isLoading={isExporting} title="下載 PDF">
-                   <Download size={16} /> <span className="hidden sm:inline">下載 PDF</span>
+                  {/* Color Picker Override - Disable if Brand Color is enforced */}
+                  {mode === 'layout' && !brandConfig.isEnabled && (
+                    <div className="flex items-center mr-2 border-r pr-2 h-8">
+                       <label title="自訂主題色" className="cursor-pointer bg-gray-100 hover:bg-gray-200 p-1.5 rounded-md flex items-center">
+                          <input 
+                            type="color" 
+                            value={customColor || data?.themeColor || '#4f46e5'} 
+                            onChange={(e) => setCustomColor(e.target.value)}
+                            className="w-5 h-5 cursor-pointer border-none p-0 bg-transparent" 
+                          />
+                       </label>
+                    </div>
+                  )}
+
+                 <Button variant="secondary" onClick={() => { setData(null); setFullImageUrl(null); setInputText(''); setAttachedFiles([]); setInputUrl(''); }} className="hidden md:flex">
+                   新專案
                  </Button>
-               )}
-               
-               {mode === 'image' && fullImageUrl && (
-                 <Button variant="outline" onClick={handleDownloadFullImage} title="下載圖片">
-                   <Download size={16} /> <span className="hidden sm:inline">下載圖片</span>
-                 </Button>
-               )}
+                 
+                 {mode === 'layout' && data && (
+                   <Button variant="outline" onClick={handleDownloadPDF} isLoading={isExporting} title="下載 PDF">
+                     <Download size={16} /> <span className="hidden sm:inline">下載 PDF</span>
+                   </Button>
+                 )}
+                 
+                 {mode === 'image' && fullImageUrl && (
+                   <Button variant="outline" onClick={handleDownloadFullImage} title="下載圖片">
+                     <Download size={16} /> <span className="hidden sm:inline">下載圖片</span>
+                   </Button>
+                 )}
 
-               <Button variant="primary" onClick={handleGenerate} isLoading={isLoading} title="重新產生">
-                 <RefreshCw size={16} /> <span className="hidden sm:inline">重新產生</span>
-               </Button>
-             </div>
-          )}
+                 <Button variant="primary" onClick={handleGenerate} isLoading={isLoading} title="重新產生">
+                   <RefreshCw size={16} /> <span className="hidden sm:inline">重新產生</span>
+                 </Button>
+                </>
+             )}
+          </div>
         </div>
       </nav>
 
@@ -453,7 +500,8 @@ const App: React.FC = () => {
                   <InfographicView 
                      data={data} 
                      onEdit={handleEditClick} 
-                     customThemeColor={customColor} 
+                     customThemeColor={customColor}
+                     brandConfig={brandConfig}
                   />
                 </div>
               </>
@@ -483,6 +531,13 @@ const App: React.FC = () => {
                       editingSection?.type === 'subtitle' ? '副標題' : 
                       editingSection?.type === 'section' ? '內容區塊' : 
                       editingSection?.type === 'statistic' ? '數據' : '結語'}
+      />
+      
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        config={brandConfig}
+        onSave={handleSaveBrandConfig}
       />
     </div>
   );

@@ -53,3 +53,10 @@ export interface EditRequest {
   currentContent: any;
   instruction: string;
 }
+
+export interface BrandConfig {
+  isEnabled: boolean;
+  footerText: string;
+  brandColor: string;
+  toneOfVoice: string; // e.g. "Professional Academic", "Friendly", "Strict"
+}

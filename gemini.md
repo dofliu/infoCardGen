@@ -1,3 +1,4 @@
+
 # Gemini Infographic Generator - Project Roadmap & AI Integration
 
 ## 專案概述 (Project Overview)
@@ -29,9 +30,9 @@
     *   **Timeline**: 偵測到年份、歷史、演變過程。
     *   **Process**: 偵測到步驟、SOP、階段性任務。
     *   **Grid**: 一般性的特點列舉。
-    *   **Comparison (New)**: 偵測到「優缺點」、「前後對比」、「產品比較」。
+    *   **Comparison**: 偵測到「優缺點」、「前後對比」、「產品比較」。
 
-### 4. 資料視覺化 (Data Visualization) (New)
+### 4. 資料視覺化 (Data Visualization)
 *   **SVG Charts**: 輕量級 SVG 圖表組件。
     *   **Bar Chart**: 適合數值比較。
     *   **Pie Chart**: 適合比例分佈。
@@ -45,15 +46,29 @@
 - [x] **多檔案分析**: 允許一次上傳多個文件，讓 AI 進行綜合歸納。
 - [x] **長文件處理**: 針對超過 Token 限制的超長文件，實作「分段摘要後整合 (Map-Reduce)」的策略。
 
-### 第二階段：更豐富的視覺組件 (Phase 2: Richer Visual Components) - [進行中]
+### 第二階段：更豐富的視覺組件 (Phase 2: Richer Visual Components) - [完成]
 - [x] **互動式圖表**: 實作輕量級 SVG Bar/Pie Chart，不依賴重型 Chart library。
 - [x] **更多排版模式**:
     -   **Comparison (對照表)**: 左右兩欄對比 (Before/After, 優點/缺點)。
-- [ ] **Pyramid (金字塔)**: 層級結構展示。
-- [ ] **Mind Map (心智圖)**: 輻射狀結構。
 - [x] **字體與配色自訂**: 開放使用者手動微調 Primary Color。
 
-### 第三階段：社群與協作 (Phase 3: Community & Collaboration)
+### 第三階段：個人品牌與客製化 (Phase 3: Personal Branding & Customization) - [完成]
+- [x] **品牌識別鎖定 (Brand Locking)**:
+    -   **固定頁尾/浮水印**: 允許使用者設定固定的 Footer 文字（如：「國立勤益科技大學 智慧自動化工程系 劉瑞弘老師團隊」）與 Logo。
+    -   **品牌色票 (Brand Colors)**: 強制鎖定 Primary/Secondary Colors，覆寫 AI 的建議，確保視覺識別一致。
+- [x] **個人化語氣 (Tone of Voice)**:
+    -   設定預設 Prompt 後綴（如：「使用大學教授的口吻」、「活潑的社群小編語氣」）。
+- [x] **設定記憶 (Config Persistence)**: 使用 `localStorage` 記錄使用者的品牌設定，無需每次重新輸入。
+
+### 第四階段：無限風格與排版控制 (Phase 4: Infinite Styles & Layout Control) - [計劃中]
+- [ ] **無限風格實驗室 (AI Style Lab)**:
+    -   **開放式 Prompt**: 允許使用者輸入風格關鍵字（如「賽博龐克」、「富春山居圖水墨風」），Gemini 動態生成 Image Prompt 與配色方案。
+    -   **特定畫風模擬**: 支援細分風格（如：美式漫畫 vs 日式漫畫、像素藝術、低多邊形）。
+- [ ] **進階排版控制 (Layout Control Center)**:
+    -   **畫布比例**: 支援 直式 (Portrait, 手機/海報)、橫式 (Landscape, PPT)、方形 (Square, IG)。
+    -   **欄位控制**: 強制指定單欄、雙欄或多欄排版。
+
+### 第五階段：社群與協作 (Phase 5: Community & Collaboration) - [遠期]
 - [ ] **歷史紀錄**: 將生成的 JSON 存入 LocalStorage 或資料庫，讓使用者可以找回過去的作品。
 - [ ] **分享功能**: 產生可分享的連結，讓他人檢視或基於該架構進行 Remix。
 
