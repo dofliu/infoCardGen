@@ -25,18 +25,20 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
   const aspectRatio = data.aspectRatio || 'vertical';
 
   // Define container widths and grid behaviors based on Aspect Ratio
+  // FIX: Removed 'aspect-[...]' classes to prevent content truncation. 
+  // Used 'min-h' instead to allow growth while maintaining a basic shape.
   const getLayoutDimensions = () => {
     switch(aspectRatio) {
       case 'horizontal':
         return {
-          containerClass: "max-w-7xl aspect-[16/9]", // Wider container
+          containerClass: "max-w-[1400px]", // Wider container for horizontal
           gridCols: "grid-cols-1 md:grid-cols-3",
           statCols: "grid-cols-2 md:grid-cols-4",
           headerHeight: "min-h-[250px]",
         };
       case 'square':
         return {
-          containerClass: "max-w-2xl aspect-[1/1]", // Square container
+          containerClass: "max-w-2xl", // Square-ish width
           gridCols: "grid-cols-1 md:grid-cols-2",
           statCols: "grid-cols-2",
           headerHeight: "min-h-[200px]",
@@ -44,7 +46,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
       case 'vertical':
       default:
         return {
-          containerClass: "max-w-4xl min-h-[1000px] aspect-[3/4]", // Standard A4-ish
+          containerClass: "max-w-4xl", // Standard A4-ish width
           gridCols: "grid-cols-1 md:grid-cols-2",
           statCols: "grid-cols-1 md:grid-cols-4",
           headerHeight: "min-h-[300px]",
@@ -302,7 +304,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
   };
 
   return (
-    <div className={`w-full mx-auto flex flex-col overflow-hidden ${layoutDims.containerClass} ${styles.container} ${data.style !== 'digital' ? 'text-gray-900' : 'text-gray-100'}`} style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}>
+    <div className={`w-full mx-auto flex flex-col ${layoutDims.containerClass} ${styles.container} ${data.style !== 'digital' ? 'text-gray-900' : 'text-gray-100'}`} style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}>
       
       <div className={`p-12 text-center relative ${styles.header} ${layoutDims.headerHeight}`} style={headerStyle}>
         
