@@ -1,0 +1,5 @@
+{
+  "name": "Instant Infographic Generator",
+  "description": "Upload multiple documents (PDF, Word, Excel) to generate a structured editable infographic HTML or a full AI-generated poster image (Banana Pro). Features AI layout engine, visual styles, and embedded illustrations.",
+  "requestFramePermissions": []
+}
