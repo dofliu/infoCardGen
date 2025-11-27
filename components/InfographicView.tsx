@@ -1,9 +1,29 @@
-
 import React from 'react';
 import { InfographicData, SectionType, InfographicSection, BrandConfig, InfographicAspectRatio } from '../types';
 import { IconDisplay } from './Icons';
 import { ChartRenderer } from './Charts';
 import { Pencil, ArrowDown, ArrowRightLeft } from 'lucide-react';
+
+interface EditableProps {
+  children: React.ReactNode;
+  type: SectionType;
+  id: string | null;
+  content: any;
+  className?: string;
+  style?: React.CSSProperties;
+  onEdit: (type: SectionType, id: string | null, currentContent: any) => void;
+}
+
+const Editable: React.FC<EditableProps> = ({ children, type, id, content, className = "", style, onEdit }) => (
+  <div className={`group relative transition-all duration-200 cursor-pointer ${className}`}
+       onClick={() => onEdit(type, id, content)}
+       style={style}>
+    {children}
+    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1.5 rounded-full shadow-sm border border-gray-200 text-indigo-600 z-20 data-html2canvas-ignore">
+      <Pencil size={14} />
+    </div>
+  </div>
+);
 
 interface Props {
   data: InfographicData;
@@ -137,17 +157,6 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
 
   const styles = getStyleConfig();
 
-  const Editable = ({ children, type, id, content, className = "", style }: { children: React.ReactNode, type: SectionType, id: string | null, content: any, className?: string, style?: React.CSSProperties }) => (
-    <div className={`group relative transition-all duration-200 cursor-pointer ${className}`}
-         onClick={() => onEdit(type, id, content)}
-         style={style}>
-      {children}
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1.5 rounded-full shadow-sm border border-gray-200 text-indigo-600 z-20 data-html2canvas-ignore">
-        <Pencil size={14} />
-      </div>
-    </div>
-  );
-
   const SectionImage = ({ url }: { url?: string }) => {
     if (!url) return null;
     return (
@@ -163,6 +172,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
       type="section" 
       id={section.id} 
       content={section}
+      onEdit={onEdit}
       className={`p-6 flex flex-col md:flex-row gap-4 items-start ${styles.sectionCard} ${index % 3 === 0 && data.style !== 'minimalist' && aspectRatio === 'vertical' ? 'md:col-span-2' : ''}`}
       style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}
     >
@@ -187,7 +197,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
       <div key={section.id} className="relative flex items-center justify-between md:justify-center w-full mb-8">
         <div className={`w-full md:w-5/12 ${isLeft ? 'order-1 md:text-right' : 'order-3 hidden md:block'}`}>
            {isLeft && (
-             <Editable type="section" id={section.id} content={section} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
+             <Editable type="section" id={section.id} content={section} onEdit={onEdit} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
                <SectionImage url={section.imageUrl} />
                <h3 className={`text-lg font-bold mb-1 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>{section.title}</h3>
                <p className={`text-sm ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{section.content}</p>
@@ -206,7 +216,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
 
         <div className={`w-full pl-8 md:pl-0 md:w-5/12 ${isLeft ? 'order-3 hidden md:block' : 'order-1'}`}>
            {!isLeft && (
-             <Editable type="section" id={section.id} content={section} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
+             <Editable type="section" id={section.id} content={section} onEdit={onEdit} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
                <SectionImage url={section.imageUrl} />
                <h3 className={`text-lg font-bold mb-1 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>{section.title}</h3>
                <p className={`text-sm ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{section.content}</p>
@@ -214,7 +224,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
            )}
            <div className="md:hidden">
              {isLeft && (
-                <Editable type="section" id={section.id} content={section} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
+                <Editable type="section" id={section.id} content={section} onEdit={onEdit} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
                   <SectionImage url={section.imageUrl} />
                   <h3 className={`text-lg font-bold mb-1 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>{section.title}</h3>
                   <p className={`text-sm ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{section.content}</p>
@@ -232,6 +242,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
          type="section" 
          id={section.id} 
          content={section} 
+         onEdit={onEdit}
          className={`w-full p-6 ${styles.sectionCard} relative z-10`}
          style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}
        >
@@ -317,13 +328,13 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
         )}
 
         <div className="relative z-10 h-full flex flex-col justify-center">
-          <Editable type="title" id={null} content={data.mainTitle} className="inline-block mb-4 p-2 hover:bg-black/5 rounded border border-transparent hover:border-white/20">
+          <Editable type="title" id={null} content={data.mainTitle} onEdit={onEdit} className="inline-block mb-4 p-2 hover:bg-black/5 rounded border border-transparent hover:border-white/20">
             <h1 className={`text-5xl mb-2 ${styles.headerTitle} ${data.style === 'professional' || data.style === 'comic' ? 'text-white drop-shadow-md' : ''}`}>
               {data.mainTitle}
             </h1>
           </Editable>
           <div className="flex justify-center">
-             <Editable type="subtitle" id={null} content={data.subtitle} className="inline-block max-w-2xl p-2 rounded hover:bg-black/5 border border-transparent hover:border-white/20">
+             <Editable type="subtitle" id={null} content={data.subtitle} onEdit={onEdit} className="inline-block max-w-2xl p-2 rounded hover:bg-black/5 border border-transparent hover:border-white/20">
               <p className={`text-xl leading-relaxed ${data.style === 'professional' || data.style === 'comic' ? 'text-white/90' : 'opacity-80'}`}>
                 {data.subtitle}
               </p>
@@ -340,6 +351,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
               type="statistic" 
               id={stat.id} 
               content={stat}
+              onEdit={onEdit}
               className={`p-4 text-center transition-transform flex flex-col justify-center min-h-[100px] ${styles.statCard}`}
               style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}
             >
@@ -395,7 +407,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
       <div className={`p-8 text-center ${data.style === 'digital' ? 'bg-gray-950 text-gray-400' : 'bg-gray-900 text-gray-300'} ${data.style === 'comic' ? 'border-t-4 border-black bg-yellow-400 text-black font-bold' : ''}`}
            style={data.style === 'custom' ? { backgroundColor: `${activeThemeColor}10`, color: '#333', borderTopWidth: 2, borderColor: activeThemeColor } : {}}
       >
-        <Editable type="conclusion" id={null} content={data.conclusion} className="inline-block p-4 border border-transparent hover:border-white/20 rounded">
+        <Editable type="conclusion" id={null} content={data.conclusion} onEdit={onEdit} className="inline-block p-4 border border-transparent hover:border-white/20 rounded">
           <p className="text-lg font-medium">{data.conclusion}</p>
         </Editable>
       </div>

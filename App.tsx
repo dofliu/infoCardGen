@@ -19,6 +19,17 @@ interface AttachedFile extends FileData {
   name: string;
 }
 
+// Helper to get formatted timestamp yyyymmddhhmm
+const getTimestamp = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${year}${month}${day}${hours}${minutes}`;
+};
+
 const App: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [inputUrl, setInputUrl] = useState('');
@@ -165,7 +176,8 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `infographai-project-${Date.now()}.json`;
+    // Use timestamp for project export
+    a.download = `infographai-project-${getTimestamp()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -389,7 +401,10 @@ const App: React.FC = () => {
       });
       
       pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-      pdf.save(`${data?.mainTitle || 'infographic'}.pdf`);
+      
+      // Use timestamp for PDF download
+      const safeTitle = (data?.mainTitle || 'infographic').replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_');
+      pdf.save(`${safeTitle}_${getTimestamp()}.pdf`);
       
     } catch (error) {
       console.error("PDF export failed", error);
@@ -403,7 +418,8 @@ const App: React.FC = () => {
     if (!fullImageUrl) return;
     const link = document.createElement('a');
     link.href = fullImageUrl;
-    link.download = 'ai-generated-infographic.png';
+    // Use timestamp for Image download
+    link.download = `infographic_${getTimestamp()}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
