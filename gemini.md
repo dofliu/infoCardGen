@@ -81,6 +81,20 @@
 - [x] **專案匯出/匯入 (Project Export/Import)**: 產生 JSON 專案檔，支援跨裝置協作與備份。
 - [ ] **分享功能**: 產生可分享的連結，讓他人檢視或基於該架構進行 Remix (需後端支援)。
 
+### 第七階段：格式解放 (Phase 7: Format Liberation) - [完成]
+- [x] **PowerPoint 原生匯出 (Native PPTX)**:
+    -   使用 `pptxgenjs` 將 AI 生成的內容轉換為真正的可編輯投影片。
+    -   支援標題、內文、統計數據頁面與原生圖表 (Chart) 轉換。
+    -   自動套用品牌色與頁尾署名。
+
+### 第八階段：內容魔術師 (Phase 8: Content Alchemist) - [完成]
+- [x] **圖示自選器 (Icon Picker)**:
+    -   允許使用者點擊圖示並從清單中更換為更精準的圖示。
+- [x] **多語言一鍵翻新 (Global Translate)**:
+    -   一鍵將所有內容翻譯為英文、日文、西班牙文等，但保留排版與圖片。
+- [x] **長度伸縮 (Content Remix)**:
+    -   AI 自動「精簡摘要」或「擴充詳述」現有內容。
+
 ---
 
 ## AI Prompt Engineering 策略筆記

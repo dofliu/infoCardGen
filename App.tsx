@@ -1,17 +1,19 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { generateInfographic, refineInfographicSection, generateFullInfographicImage, FileData } from './services/geminiService';
+import { generateInfographic, refineInfographicSection, generateFullInfographicImage, transformInfographic, FileData } from './services/geminiService';
 import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem } from './types';
 import { InfographicView } from './components/InfographicView';
 import { EditModal } from './components/EditModal';
 import { SettingsModal } from './components/SettingsModal';
 import { HistorySidebar } from './components/HistorySidebar';
+import { IconPickerModal } from './components/IconPickerModal';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
+import { exportToPPTX } from './utils/pptExporter';
 
 // Define a type for files kept as attachments (like PDFs)
 interface AttachedFile extends FileData {
@@ -37,6 +39,8 @@ const App: React.FC = () => {
   
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPPTExporting, setIsPPTExporting] = useState(false);
+  const [isMagicTransforming, setIsMagicTransforming] = useState(false);
   
   const [data, setData] = useState<InfographicData | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
@@ -55,6 +59,10 @@ const App: React.FC = () => {
     toneOfVoice: ''
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Icon Picker
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
+  const [editingIconSectionId, setEditingIconSectionId] = useState<string | null>(null);
 
   // History & Persistence
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -413,6 +421,21 @@ const App: React.FC = () => {
       setIsExporting(false);
     }
   };
+
+  const handleDownloadPPT = async () => {
+    if (!data) return;
+    setIsPPTExporting(true);
+    try {
+      const safeTitle = (data.mainTitle || 'infographic').replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_');
+      const filename = `${safeTitle}_${getTimestamp()}.pptx`;
+      await exportToPPTX(data, filename, brandConfig);
+    } catch (error) {
+      console.error("PPT export failed", error);
+      alert("匯出 PowerPoint 失敗，請稍後再試。");
+    } finally {
+      setIsPPTExporting(false);
+    }
+  };
   
   const handleDownloadFullImage = () => {
     if (!fullImageUrl) return;
@@ -428,6 +451,42 @@ const App: React.FC = () => {
   const handleEditClick = (type: SectionType, id: string | null, currentContent: any) => {
     setEditingSection({ type, id, content: currentContent });
     setIsEditModalOpen(true);
+  };
+
+  // Icon Editing Handlers
+  const handleIconEditClick = (sectionId: string, currentIcon: string) => {
+    setEditingIconSectionId(sectionId);
+    setIsIconPickerOpen(true);
+  };
+
+  const handleIconSelect = (newIconType: string) => {
+    if (!data || !editingIconSectionId) return;
+
+    // Update local state directly for instant feedback
+    const updatedSections = data.sections.map(s => 
+      s.id === editingIconSectionId ? { ...s, iconType: newIconType as any } : s
+    );
+    
+    const updatedData = { ...data, sections: updatedSections };
+    setData(updatedData);
+    setIsIconPickerOpen(false);
+    setEditingIconSectionId(null);
+  };
+
+  // Magic Tools Handlers
+  const handleMagicTransform = async (instruction: string) => {
+    if (!data) return;
+    
+    setIsMagicTransforming(true);
+    try {
+      const newData = await transformInfographic(data, instruction);
+      setData(newData);
+    } catch (error) {
+      console.error("Magic transform failed", error);
+      alert("轉換失敗，請稍後再試。");
+    } finally {
+      setIsMagicTransforming(false);
+    }
   };
 
   const handleRefineSubmit = async (instruction: string) => {
@@ -556,6 +615,38 @@ const App: React.FC = () => {
                    ))}
                  </div>
 
+                  {/* Magic Tools Dropdown */}
+                  {mode === 'layout' && (
+                    <div className="relative group mr-2">
+                       <button 
+                         className="p-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1 text-sm font-medium hover:bg-indigo-100 transition-colors"
+                         disabled={isMagicTransforming}
+                       >
+                         {isMagicTransforming ? <RefreshCw size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                         <span className="hidden sm:inline">魔術棒</span>
+                         <ChevronDown size={14} />
+                       </button>
+                       <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden hidden group-hover:block animate-in fade-in slide-in-from-top-2 z-50">
+                          <div className="p-2 space-y-1">
+                             <div className="text-xs font-semibold text-gray-400 px-2 py-1 uppercase tracking-wider flex items-center gap-1">
+                               <Languages size={12} /> 翻譯 (Translate)
+                             </div>
+                             <button onClick={() => handleMagicTransform("Translate all text to English")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">English</button>
+                             <button onClick={() => handleMagicTransform("Translate all text to Japanese")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">日本語</button>
+                             <button onClick={() => handleMagicTransform("Translate all text to Spanish")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">Español</button>
+                             
+                             <div className="h-px bg-gray-100 my-1"></div>
+                             
+                             <div className="text-xs font-semibold text-gray-400 px-2 py-1 uppercase tracking-wider flex items-center gap-1">
+                               <TextSelect size={12} /> 改寫 (Remix)
+                             </div>
+                             <button onClick={() => handleMagicTransform("Summarize content to be 50% shorter")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">精簡摘要 (Summarize)</button>
+                             <button onClick={() => handleMagicTransform("Expand content with more details and explanations")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">擴充詳述 (Expand)</button>
+                          </div>
+                       </div>
+                    </div>
+                  )}
+
                   {/* Color Picker Override - Disable if Brand Color is enforced */}
                   {mode === 'layout' && !brandConfig.isEnabled && (
                     <div className="flex items-center mr-2 border-r pr-2 h-8">
@@ -575,9 +666,14 @@ const App: React.FC = () => {
                  </Button>
                  
                  {mode === 'layout' && data && (
-                   <Button variant="outline" onClick={handleDownloadPDF} isLoading={isExporting} title="下載 PDF">
-                     <Download size={16} /> <span className="hidden sm:inline">下載 PDF</span>
-                   </Button>
+                   <div className="flex gap-1">
+                     <Button variant="outline" onClick={handleDownloadPDF} isLoading={isExporting} title="下載 PDF">
+                       <Download size={16} /> <span className="hidden sm:inline">PDF</span>
+                     </Button>
+                     <Button variant="outline" onClick={handleDownloadPPT} isLoading={isPPTExporting} title="下載 PPT" className="text-orange-600 border-orange-200 hover:bg-orange-50">
+                       <Presentation size={16} /> <span className="hidden sm:inline">PPT</span>
+                     </Button>
+                   </div>
                  )}
                  
                  {mode === 'image' && fullImageUrl && (
@@ -587,7 +683,7 @@ const App: React.FC = () => {
                  )}
 
                  <Button variant="primary" onClick={() => { setData(null); setFullImageUrl(null); }} title="修改並重新產生">
-                   <Pencil size={16} /> <span className="hidden sm:inline">修改並重新產生</span>
+                   <Pencil size={16} /> <span className="hidden sm:inline">修改</span>
                  </Button>
                 </>
              )}
@@ -793,12 +889,13 @@ const App: React.FC = () => {
             {mode === 'layout' && data && (
               <>
                 <div className="bg-blue-50 text-blue-800 px-6 py-3 rounded-full text-sm font-medium flex items-center gap-2 border border-blue-100 shadow-sm">
-                  <Pencil size={16} /> 將滑鼠移至任何區塊即可進行 AI 修改與修正
+                  <Pencil size={16} /> 將滑鼠移至任何區塊即可進行 AI 修改與修正，或點擊圖示進行更換
                 </div>
                 <div ref={infographicRef} className="w-full flex justify-center">
                   <InfographicView 
                      data={data} 
                      onEdit={handleEditClick} 
+                     onIconEdit={handleIconEditClick}
                      customThemeColor={customColor}
                      brandConfig={brandConfig}
                   />
@@ -839,6 +936,12 @@ const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         config={brandConfig}
         onSave={handleSaveBrandConfig}
+      />
+
+      <IconPickerModal 
+        isOpen={isIconPickerOpen}
+        onClose={() => setIsIconPickerOpen(false)}
+        onSelect={handleIconSelect}
       />
     </div>
   );

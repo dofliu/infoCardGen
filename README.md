@@ -20,7 +20,8 @@
 *   **即時編輯與修正**:
     *   點擊任何文字區塊即可透過 AI 進行語意重寫（例如：「改得更有趣一點」、「精簡文字」）。
 *   **匯出功能**:
-    *   支援匯出為 **PDF** 文件。
+    *   支援匯出為 **PDF** 文件 (圖片格式)。
+    *   支援匯出為 **PowerPoint (PPTX)** 投影片 (可編輯格式)。
     *   全圖模式下支援下載 **PNG**。
 
 ## 🛠 技術堆疊 (Tech Stack)
@@ -30,6 +31,7 @@
 *   **File Processing**:
     *   `mammoth.js` (Word docx parsing)
     *   `xlsx` (Excel/CSV parsing)
+    *   `pptxgenjs` (PowerPoint export)
     *   `html2canvas` & `jspdf` (PDF Export)
 *   **Icons**: Lucide React
 
@@ -63,4 +65,5 @@
 *   `services/geminiService.ts`: 與 Google Gemini API 溝通的核心服務層 (包含 Prompt Engineering)。
 *   `components/InfographicView.tsx`: 負責將結構化數據渲染為視覺圖表的組件。
 *   `components/Charts.tsx`: SVG 圖表渲染組件。
+*   `utils/pptExporter.ts`: PowerPoint 生成邏輯。
 *   `gemini.md`: 專案開發規劃與 AI 整合細節文檔。

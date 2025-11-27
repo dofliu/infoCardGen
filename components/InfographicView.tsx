@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { InfographicData, SectionType, InfographicSection, BrandConfig, InfographicAspectRatio } from '../types';
 import { IconDisplay } from './Icons';
@@ -28,11 +29,12 @@ const Editable: React.FC<EditableProps> = ({ children, type, id, content, classN
 interface Props {
   data: InfographicData;
   onEdit: (type: SectionType, id: string | null, currentContent: any) => void;
+  onIconEdit?: (sectionId: string, currentIcon: string) => void;
   customThemeColor?: string; // New prop for color override
   brandConfig?: BrandConfig; // Pass brand config to render footer and force color
 }
 
-export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColor, brandConfig }) => {
+export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, customThemeColor, brandConfig }) => {
   
   // Logic: 
   // 1. If Brand Config is Enabled, use Brand Color.
@@ -45,8 +47,6 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
   const aspectRatio = data.aspectRatio || 'vertical';
 
   // Define container widths and grid behaviors based on Aspect Ratio
-  // FIX: Removed 'aspect-[...]' classes to prevent content truncation. 
-  // Used 'min-h' instead to allow growth while maintaining a basic shape.
   const getLayoutDimensions = () => {
     switch(aspectRatio) {
       case 'horizontal':
@@ -157,6 +157,11 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
 
   const styles = getStyleConfig();
 
+  const handleIconClick = (e: React.MouseEvent, sectionId: string, currentIcon: string) => {
+    e.stopPropagation();
+    if (onIconEdit) onIconEdit(sectionId, currentIcon);
+  };
+
   const SectionImage = ({ url }: { url?: string }) => {
     if (!url) return null;
     return (
@@ -176,7 +181,12 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
       className={`p-6 flex flex-col md:flex-row gap-4 items-start ${styles.sectionCard} ${index % 3 === 0 && data.style !== 'minimalist' && aspectRatio === 'vertical' ? 'md:col-span-2' : ''}`}
       style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}
     >
-      <div className={`p-3 shrink-0 ${styles.iconBg}`} style={data.style === 'custom' ? { borderColor: activeThemeColor, color: activeThemeColor } : {}}>
+      <div 
+        className={`p-3 shrink-0 ${styles.iconBg} cursor-pointer hover:scale-110 transition-transform`} 
+        style={data.style === 'custom' ? { borderColor: activeThemeColor, color: activeThemeColor } : {}}
+        onClick={(e) => handleIconClick(e, section.id, section.iconType)}
+        title="點擊更換圖示"
+      >
         <IconDisplay type={section.iconType} className="w-6 h-6" />
       </div>
       <div className="flex-1 w-full">
@@ -190,8 +200,6 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
   );
 
   const renderTimelineSection = (section: InfographicSection, index: number) => {
-    // If horizontal, timeline might need different handling, but keeping vertical flow for simplicity in HTML view for now.
-    // Could switch to horizontal scrolling timeline later.
     const isLeft = index % 2 === 0;
     return (
       <div key={section.id} className="relative flex items-center justify-between md:justify-center w-full mb-8">
@@ -207,8 +215,11 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
         
         <div className="absolute left-0 md:left-1/2 h-full w-0.5 -ml-[1px] top-0 bottom-0 flex flex-col items-center justify-center z-10 order-2">
           <div className={`w-1 h-full ${styles.timelineLine} absolute`}></div>
-          <div className={`relative w-10 h-10 flex items-center justify-center rounded-full border-4 ${data.style === 'digital' ? 'bg-gray-900 border-green-500' : 'bg-white'} shadow-md z-20`}
-               style={data.style !== 'digital' ? { borderColor: activeThemeColor } : {}}
+          <div 
+            className={`relative w-10 h-10 flex items-center justify-center rounded-full border-4 ${data.style === 'digital' ? 'bg-gray-900 border-green-500' : 'bg-white'} shadow-md z-20 cursor-pointer hover:scale-110 transition-transform`}
+            style={data.style !== 'digital' ? { borderColor: activeThemeColor } : {}}
+            onClick={(e) => handleIconClick(e, section.id, section.iconType)}
+            title="點擊更換圖示"
           >
             <IconDisplay type={section.iconType} className={`w-5 h-5 ${data.style === 'digital' ? 'text-green-400' : ''}`} style={data.style !== 'digital' ? { color: activeThemeColor } : {}} />
           </div>
@@ -255,7 +266,9 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, customThemeColo
          <div className={`pl-12 w-full ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>
            <SectionImage url={section.imageUrl} />
            <div className="flex items-start gap-2">
-             <IconDisplay type={section.iconType} className="w-5 h-5 mt-0.5 opacity-70 shrink-0" />
+             <div onClick={(e) => handleIconClick(e, section.id, section.iconType)} className="cursor-pointer hover:text-indigo-500 transition-colors">
+                <IconDisplay type={section.iconType} className="w-5 h-5 mt-0.5 opacity-70 shrink-0" />
+             </div>
              <span>{section.content}</span>
            </div>
          </div>

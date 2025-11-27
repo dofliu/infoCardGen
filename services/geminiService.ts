@@ -30,8 +30,7 @@ const infographicSchema: Schema = {
           content: { type: Type.STRING, description: "Concise summary text. Use bullet points (•) if multiple items." },
           iconType: { 
             type: Type.STRING, 
-            enum: ['bulb', 'chart', 'list', 'target', 'warning', 'info', 'calendar', 'check', 'time'],
-            description: "Visual icon suggestion" 
+            description: "Visual icon suggestion. Must match available types." 
           },
           imagePrompt: {
             type: Type.STRING,
@@ -387,4 +386,68 @@ export const refineInfographicSection = async (
   }
 
   return newData;
+};
+
+// NEW: Transform the entire infographic content (Translate, Summarize, Expand)
+export const transformInfographic = async (
+  currentData: InfographicData,
+  instruction: string
+): Promise<InfographicData> => {
+  
+  // Create a lightweight version of data to reduce token count (exclude images/base64)
+  const dataForPrompt = {
+    ...currentData,
+    sections: currentData.sections.map(({ imageUrl, ...rest }) => rest), // Remove images
+    charts: currentData.charts // Include charts
+  };
+
+  const prompt = `
+  Act as an expert content editor.
+  
+  Goal: Transform the following JSON content based on this instruction: "${instruction}".
+  
+  Rules:
+  1. PRESERVE the exact JSON structure (mainTitle, subtitle, sections, etc.).
+  2. ONLY modify the text values (content, titles, labels) based on the instruction.
+  3. Do NOT translate technical keys (id, iconType, layout, style).
+  4. Ensure the output is valid JSON.
+  
+  Input JSON:
+  ${JSON.stringify(dataForPrompt)}
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: infographicSchema
+      }
+    });
+
+    if (!response.text) throw new Error("Transformation failed");
+    
+    const transformedData = JSON.parse(response.text) as InfographicData;
+    
+    // Merge back the images from the original data
+    const mergedSections = transformedData.sections.map(newSec => {
+      const originalSec = currentData.sections.find(s => s.id === newSec.id);
+      return {
+        ...newSec,
+        imageUrl: originalSec?.imageUrl || undefined
+      };
+    });
+
+    return {
+      ...transformedData,
+      style: currentData.style, // Preserve style
+      themeColor: currentData.themeColor, // Preserve color
+      sections: mergedSections
+    };
+
+  } catch (e) {
+    console.error("Transformation error", e);
+    throw e;
+  }
 };
