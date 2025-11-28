@@ -3,7 +3,8 @@ import React from 'react';
 import { InfographicData, SectionType, InfographicSection, BrandConfig, InfographicAspectRatio } from '../types';
 import { IconDisplay } from './Icons';
 import { ChartRenderer } from './Charts';
-import { Pencil, ArrowDown, ArrowRightLeft } from 'lucide-react';
+import { Pencil, ArrowDown, ArrowRightLeft, GripVertical } from 'lucide-react';
+import { motion, Reorder, AnimatePresence } from 'framer-motion';
 
 interface EditableProps {
   children: React.ReactNode;
@@ -13,16 +14,23 @@ interface EditableProps {
   className?: string;
   style?: React.CSSProperties;
   onEdit: (type: SectionType, id: string | null, currentContent: any) => void;
+  // Drag props
+  dragControls?: React.ReactNode;
 }
 
-const Editable: React.FC<EditableProps> = ({ children, type, id, content, className = "", style, onEdit }) => (
-  <div className={`group relative transition-all duration-200 cursor-pointer ${className}`}
+const Editable: React.FC<EditableProps> = ({ children, type, id, content, className = "", style, onEdit, dragControls }) => (
+  <div className={`group relative transition-all duration-200 ${className}`}
        onClick={() => onEdit(type, id, content)}
        style={style}>
     {children}
-    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1.5 rounded-full shadow-sm border border-gray-200 text-indigo-600 z-20 data-html2canvas-ignore">
+    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1.5 rounded-full shadow-sm border border-gray-200 text-indigo-600 z-20 data-html2canvas-ignore cursor-pointer">
       <Pencil size={14} />
     </div>
+    {dragControls && (
+      <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1.5 rounded-full shadow-sm border border-gray-200 text-gray-500 z-20 data-html2canvas-ignore cursor-grab active:cursor-grabbing" onClick={(e) => e.stopPropagation()}>
+        <GripVertical size={14} />
+      </div>
+    )}
   </div>
 );
 
@@ -30,35 +38,40 @@ interface Props {
   data: InfographicData;
   onEdit: (type: SectionType, id: string | null, currentContent: any) => void;
   onIconEdit?: (sectionId: string, currentIcon: string) => void;
-  customThemeColor?: string; // New prop for color override
-  brandConfig?: BrandConfig; // Pass brand config to render footer and force color
+  onReorder?: (newSections: InfographicSection[]) => void; // New prop for reordering
+  customThemeColor?: string;
+  brandConfig?: BrandConfig;
+  isMotionEnabled?: boolean; // New prop for animation
 }
 
-export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, customThemeColor, brandConfig }) => {
+export const InfographicView: React.FC<Props> = ({ 
+  data, 
+  onEdit, 
+  onIconEdit, 
+  onReorder,
+  customThemeColor, 
+  brandConfig, 
+  isMotionEnabled = false 
+}) => {
   
-  // Logic: 
-  // 1. If Brand Config is Enabled, use Brand Color.
-  // 2. Else if customThemeColor (user picked in UI) is present, use it.
-  // 3. Else use data.themeColor (AI generated).
   const activeThemeColor = (brandConfig?.isEnabled && brandConfig.brandColor) 
     ? brandConfig.brandColor 
     : (customThemeColor || data.themeColor);
 
   const aspectRatio = data.aspectRatio || 'vertical';
 
-  // Define container widths and grid behaviors based on Aspect Ratio
   const getLayoutDimensions = () => {
     switch(aspectRatio) {
       case 'horizontal':
         return {
-          containerClass: "max-w-[1400px]", // Wider container for horizontal
+          containerClass: "max-w-[1400px]",
           gridCols: "grid-cols-1 md:grid-cols-3",
           statCols: "grid-cols-2 md:grid-cols-4",
           headerHeight: "min-h-[250px]",
         };
       case 'square':
         return {
-          containerClass: "max-w-2xl", // Square-ish width
+          containerClass: "max-w-2xl",
           gridCols: "grid-cols-1 md:grid-cols-2",
           statCols: "grid-cols-2",
           headerHeight: "min-h-[200px]",
@@ -66,7 +79,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
       case 'vertical':
       default:
         return {
-          containerClass: "max-w-4xl", // Standard A4-ish width
+          containerClass: "max-w-4xl",
           gridCols: "grid-cols-1 md:grid-cols-2",
           statCols: "grid-cols-1 md:grid-cols-4",
           headerHeight: "min-h-[300px]",
@@ -76,7 +89,6 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
 
   const layoutDims = getLayoutDimensions();
 
-  // Style Definitions
   const getStyleConfig = () => {
     switch (data.style) {
       case 'comic':
@@ -128,7 +140,6 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
           imageContainer: "grayscale mb-4 rounded-sm"
         };
       case 'custom':
-        // Adaptive style that uses activeThemeColor extensively for borders and highlights
         return {
           container: "font-sans bg-white border-2 rounded-xl",
           header: "border-b-2 bg-opacity-10",
@@ -140,7 +151,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
           bgPattern: "",
           imageContainer: "rounded-xl overflow-hidden border-2 mb-4"
         };
-      default: // Professional
+      default:
         return {
           container: "font-sans bg-white shadow-xl rounded-xl",
           header: "relative overflow-hidden",
@@ -171,14 +182,29 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
     );
   };
 
+  const ReorderItemWrapper = ({ section, children }: { section: InfographicSection, children: React.ReactNode }) => {
+    return (
+      <Reorder.Item 
+        value={section} 
+        id={section.id} 
+        initial={isMotionEnabled ? { opacity: 0, y: 20 } : false}
+        animate={isMotionEnabled ? { opacity: 1, y: 0 } : false}
+        exit={{ opacity: 0 }}
+        className="w-full"
+      >
+        {children}
+      </Reorder.Item>
+    );
+  };
+
   const renderGridSection = (section: InfographicSection, index: number) => (
     <Editable 
-      key={section.id} 
       type="section" 
       id={section.id} 
       content={section}
       onEdit={onEdit}
-      className={`p-6 flex flex-col md:flex-row gap-4 items-start ${styles.sectionCard} ${index % 3 === 0 && data.style !== 'minimalist' && aspectRatio === 'vertical' ? 'md:col-span-2' : ''}`}
+      dragControls={true}
+      className={`p-6 flex flex-col md:flex-row gap-4 items-start h-full ${styles.sectionCard} ${index % 3 === 0 && data.style !== 'minimalist' && aspectRatio === 'vertical' ? 'md:col-span-2' : ''}`}
       style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}
     >
       <div 
@@ -202,10 +228,10 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
   const renderTimelineSection = (section: InfographicSection, index: number) => {
     const isLeft = index % 2 === 0;
     return (
-      <div key={section.id} className="relative flex items-center justify-between md:justify-center w-full mb-8">
+      <div className="relative flex items-center justify-between md:justify-center w-full mb-8">
         <div className={`w-full md:w-5/12 ${isLeft ? 'order-1 md:text-right' : 'order-3 hidden md:block'}`}>
            {isLeft && (
-             <Editable type="section" id={section.id} content={section} onEdit={onEdit} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
+             <Editable type="section" id={section.id} content={section} onEdit={onEdit} dragControls={true} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
                <SectionImage url={section.imageUrl} />
                <h3 className={`text-lg font-bold mb-1 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>{section.title}</h3>
                <p className={`text-sm ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{section.content}</p>
@@ -227,7 +253,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
 
         <div className={`w-full pl-8 md:pl-0 md:w-5/12 ${isLeft ? 'order-3 hidden md:block' : 'order-1'}`}>
            {!isLeft && (
-             <Editable type="section" id={section.id} content={section} onEdit={onEdit} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
+             <Editable type="section" id={section.id} content={section} onEdit={onEdit} dragControls={true} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
                <SectionImage url={section.imageUrl} />
                <h3 className={`text-lg font-bold mb-1 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>{section.title}</h3>
                <p className={`text-sm ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{section.content}</p>
@@ -235,7 +261,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
            )}
            <div className="md:hidden">
              {isLeft && (
-                <Editable type="section" id={section.id} content={section} onEdit={onEdit} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
+                <Editable type="section" id={section.id} content={section} onEdit={onEdit} dragControls={true} className={`p-5 ${styles.sectionCard}`} style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}>
                   <SectionImage url={section.imageUrl} />
                   <h3 className={`text-lg font-bold mb-1 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>{section.title}</h3>
                   <p className={`text-sm ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{section.content}</p>
@@ -248,12 +274,13 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
   };
 
   const renderProcessSection = (section: InfographicSection, index: number) => (
-    <div key={section.id} className="flex flex-col items-center relative w-full">
+    <div className="flex flex-col items-center relative w-full">
        <Editable 
          type="section" 
          id={section.id} 
          content={section} 
          onEdit={onEdit}
+         dragControls={true}
          className={`w-full p-6 ${styles.sectionCard} relative z-10`}
          style={data.style === 'custom' ? { borderColor: `${activeThemeColor}40` } : {}}
        >
@@ -284,7 +311,8 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
   );
 
   const renderComparisonLayout = () => {
-    // Split sections into two groups
+    // For comparison, reordering is tricky if we split by index.
+    // We will render drag controls but reordering the main list might flip items from left to right.
     const midpoint = Math.ceil(data.sections.length / 2);
     const leftSections = data.sections.slice(0, midpoint);
     const rightSections = data.sections.slice(midpoint);
@@ -327,6 +355,68 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
     borderColor: data.style === 'custom' ? activeThemeColor : undefined
   };
 
+  const renderContent = () => {
+    // Logic for rendering Reorder.Group depending on layout
+    // Grid: Grid layout
+    if (data.layout === 'grid') {
+      return (
+        <Reorder.Group 
+          axis="y" 
+          values={data.sections} 
+          onReorder={onReorder || (() => {})} 
+          className={`grid ${layoutDims.gridCols} gap-6`}
+        >
+          {data.sections.map((section, index) => (
+            <ReorderItemWrapper key={section.id} section={section}>
+              {renderGridSection(section, index)}
+            </ReorderItemWrapper>
+          ))}
+        </Reorder.Group>
+      );
+    } 
+    // Timeline: Vertical stack
+    else if (data.layout === 'timeline') {
+      return (
+        <Reorder.Group 
+          axis="y" 
+          values={data.sections} 
+          onReorder={onReorder || (() => {})} 
+          className="flex flex-col relative pl-4 md:pl-0"
+        >
+          {data.sections.map((section, index) => (
+             <ReorderItemWrapper key={section.id} section={section}>
+               {renderTimelineSection(section, index)}
+             </ReorderItemWrapper>
+          ))}
+        </Reorder.Group>
+      );
+    }
+    // Process: Vertical stack
+    else if (data.layout === 'process') {
+      return (
+        <Reorder.Group 
+          axis="y" 
+          values={data.sections} 
+          onReorder={onReorder || (() => {})} 
+          className="flex flex-col gap-2 max-w-2xl mx-auto"
+        >
+           {data.sections.map((section, index) => (
+             <ReorderItemWrapper key={section.id} section={section}>
+               {renderProcessSection(section, index)}
+             </ReorderItemWrapper>
+           ))}
+        </Reorder.Group>
+      );
+    }
+    // Comparison: Complex layout, wrapping generic Reorder.Group around the logic is hard because visual split is index based.
+    // For simplicity, we wrap the whole comparison container in a non-draggable div, or just disable reordering for comparison.
+    // Or we render a Reorder.Group but visually manipulate children.
+    // Let's stick to no-reorder for Comparison for now, or just render it without reorder wrapper.
+    else {
+      return renderComparisonLayout();
+    }
+  };
+
   return (
     <div className={`w-full mx-auto flex flex-col ${layoutDims.containerClass} ${styles.container} ${data.style !== 'digital' ? 'text-gray-900' : 'text-gray-100'}`} style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}>
       
@@ -342,15 +432,24 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
 
         <div className="relative z-10 h-full flex flex-col justify-center">
           <Editable type="title" id={null} content={data.mainTitle} onEdit={onEdit} className="inline-block mb-4 p-2 hover:bg-black/5 rounded border border-transparent hover:border-white/20">
-            <h1 className={`text-5xl mb-2 ${styles.headerTitle} ${data.style === 'professional' || data.style === 'comic' ? 'text-white drop-shadow-md' : ''}`}>
+            <motion.h1 
+              initial={isMotionEnabled ? { scale: 0.9, opacity: 0 } : false}
+              animate={isMotionEnabled ? { scale: 1, opacity: 1 } : false}
+              className={`text-5xl mb-2 ${styles.headerTitle} ${data.style === 'professional' || data.style === 'comic' ? 'text-white drop-shadow-md' : ''}`}
+            >
               {data.mainTitle}
-            </h1>
+            </motion.h1>
           </Editable>
           <div className="flex justify-center">
              <Editable type="subtitle" id={null} content={data.subtitle} onEdit={onEdit} className="inline-block max-w-2xl p-2 rounded hover:bg-black/5 border border-transparent hover:border-white/20">
-              <p className={`text-xl leading-relaxed ${data.style === 'professional' || data.style === 'comic' ? 'text-white/90' : 'opacity-80'}`}>
+              <motion.p 
+                initial={isMotionEnabled ? { y: 20, opacity: 0 } : false}
+                animate={isMotionEnabled ? { y: 0, opacity: 1 } : false}
+                transition={{ delay: 0.2 }}
+                className={`text-xl leading-relaxed ${data.style === 'professional' || data.style === 'comic' ? 'text-white/90' : 'opacity-80'}`}
+              >
                 {data.subtitle}
-              </p>
+              </motion.p>
             </Editable>
           </div>
         </div>
@@ -358,7 +457,7 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
 
       <div className={`flex-grow flex flex-col ${styles.bgPattern}`}>
         <div className={`grid ${layoutDims.statCols} gap-4 p-8 -mt-8 relative z-20`}>
-          {data.statistics.map((stat) => (
+          {data.statistics.map((stat, i) => (
             <Editable 
               key={stat.id} 
               type="statistic" 
@@ -368,32 +467,21 @@ export const InfographicView: React.FC<Props> = ({ data, onEdit, onIconEdit, cus
               className={`p-4 text-center transition-transform flex flex-col justify-center min-h-[100px] ${styles.statCard}`}
               style={data.style === 'custom' ? { borderColor: activeThemeColor } : {}}
             >
-              <div className="text-3xl font-bold mb-1 break-words" style={{ color: data.style === 'digital' ? '#4ade80' : activeThemeColor }}>{stat.value}</div>
-              <div className={`font-medium uppercase tracking-wide text-xs ${data.style === 'digital' ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</div>
+              <motion.div
+                initial={isMotionEnabled ? { scale: 0 } : false}
+                animate={isMotionEnabled ? { scale: 1 } : false}
+                transition={{ delay: 0.3 + (i * 0.1) }}
+              >
+                <div className="text-3xl font-bold mb-1 break-words" style={{ color: data.style === 'digital' ? '#4ade80' : activeThemeColor }}>{stat.value}</div>
+                <div className={`font-medium uppercase tracking-wide text-xs ${data.style === 'digital' ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</div>
+              </motion.div>
             </Editable>
           ))}
         </div>
 
         <div className="flex-grow p-8 pt-0 space-y-8">
-          {data.layout === 'timeline' && (
-            <div className="flex flex-col relative pl-4 md:pl-0">
-               {data.sections.map((section, index) => renderTimelineSection(section, index))}
-            </div>
-          )}
-
-          {data.layout === 'process' && (
-            <div className="flex flex-col gap-2 max-w-2xl mx-auto">
-               {data.sections.map((section, index) => renderProcessSection(section, index))}
-            </div>
-          )}
-
-          {data.layout === 'grid' && (
-            <div className={`grid ${layoutDims.gridCols} gap-6`}>
-              {data.sections.map((section, index) => renderGridSection(section, index))}
-            </div>
-          )}
-
-          {data.layout === 'comparison' && renderComparisonLayout()}
+          {/* Main Sections with Drag & Drop */}
+          {renderContent()}
 
           {/* Charts Section */}
           {data.charts && data.charts.length > 0 && (

@@ -1,14 +1,15 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { generateInfographic, refineInfographicSection, generateFullInfographicImage, transformInfographic, FileData } from './services/geminiService';
-import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem } from './types';
+import { generateInfographic, refineInfographicSection, generateFullInfographicImage, transformInfographic, FileData, generateSocialCaption } from './services/geminiService';
+import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem, InfographicSection, SocialPlatform } from './types';
 import { InfographicView } from './components/InfographicView';
 import { EditModal } from './components/EditModal';
 import { SettingsModal } from './components/SettingsModal';
 import { HistorySidebar } from './components/HistorySidebar';
 import { IconPickerModal } from './components/IconPickerModal';
+import { SocialMediaModal } from './components/SocialMediaModal';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect, Eraser, PlayCircle, Share2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
@@ -64,16 +65,28 @@ const App: React.FC = () => {
   const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
   const [editingIconSectionId, setEditingIconSectionId] = useState<string | null>(null);
 
+  // Social Media Kit
+  const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
+
   // History & Persistence
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Motion & Animation
+  const [isMotionEnabled, setIsMotionEnabled] = useState(false);
+
   const [mode, setMode] = useState<'layout' | 'image'>('layout');
   
   const infographicRef = useRef<HTMLDivElement>(null);
+  
+  // Edit & Refine Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  // For standard layout editing
   const [editingSection, setEditingSection] = useState<{type: SectionType, id: string | null, content: any} | null>(null);
+  // For full image editing/regenerating
+  const [isImageRefineMode, setIsImageRefineMode] = useState(false);
+  
   const [isRefining, setIsRefining] = useState(false);
 
   // Load Brand Config & History from Local Storage on Mount
@@ -390,6 +403,8 @@ const App: React.FC = () => {
     
     setIsExporting(true);
     try {
+      // Temporarily disable motion/transforms for clean capture if needed
+      // but html2canvas captures current state
       const canvas = await html2canvas(infographicRef.current, {
         scale: 2,
         useCORS: true,
@@ -450,6 +465,13 @@ const App: React.FC = () => {
 
   const handleEditClick = (type: SectionType, id: string | null, currentContent: any) => {
     setEditingSection({ type, id, content: currentContent });
+    setIsImageRefineMode(false);
+    setIsEditModalOpen(true);
+  };
+
+  // Image Refine Click Handler
+  const handleImageRefineClick = () => {
+    setIsImageRefineMode(true);
     setIsEditModalOpen(true);
   };
 
@@ -473,6 +495,18 @@ const App: React.FC = () => {
     setEditingIconSectionId(null);
   };
 
+  // Reorder Handler (Drag & Drop)
+  const handleReorder = (newSections: InfographicSection[]) => {
+    if (!data) return;
+    setData({ ...data, sections: newSections });
+  };
+
+  // Social Media Generator
+  const handleSocialGenerate = async (platform: SocialPlatform) => {
+    if (!data) return "";
+    return await generateSocialCaption(data, platform);
+  };
+
   // Magic Tools Handlers
   const handleMagicTransform = async (instruction: string) => {
     if (!data) return;
@@ -490,19 +524,47 @@ const App: React.FC = () => {
   };
 
   const handleRefineSubmit = async (instruction: string) => {
-    if (!editingSection || !data) return;
-
     setIsRefining(true);
+
     try {
-      const updatedData = await refineInfographicSection(
-        data,
-        editingSection.type,
-        editingSection.id,
-        instruction
-      );
-      setData(updatedData);
-      setIsEditModalOpen(false);
-      setEditingSection(null);
+      // Branch: If Image Refine Mode
+      if (isImageRefineMode) {
+        const apiKey = await window.aistudio?.hasSelectedApiKey();
+        if (!apiKey) await window.aistudio?.openSelectKey();
+        
+        const serviceFiles = attachedFiles.map(f => ({ mimeType: f.mimeType, data: f.data }));
+        
+        const newImageUrl = await generateFullInfographicImage(
+          inputText, 
+          selectedStyle, 
+          serviceFiles, 
+          inputUrl, 
+          brandConfig,
+          customStylePrompt,
+          aspectRatio,
+          instruction // Pass instruction here
+        );
+        
+        if (newImageUrl) {
+          setFullImageUrl(newImageUrl);
+          saveToHistory(null, newImageUrl, 'image');
+          setIsEditModalOpen(false);
+        } else {
+           throw new Error("Refine image returned nothing");
+        }
+      } 
+      // Branch: Standard Layout Refine Mode
+      else if (editingSection && data) {
+        const updatedData = await refineInfographicSection(
+          data,
+          editingSection.type,
+          editingSection.id,
+          instruction
+        );
+        setData(updatedData);
+        setIsEditModalOpen(false);
+        setEditingSection(null);
+      }
     } catch (error) {
       console.error("Refinement failed", error);
       alert("修改失敗，請重試。");
@@ -617,34 +679,44 @@ const App: React.FC = () => {
 
                   {/* Magic Tools Dropdown */}
                   {mode === 'layout' && (
-                    <div className="relative group mr-2">
-                       <button 
-                         className="p-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1 text-sm font-medium hover:bg-indigo-100 transition-colors"
-                         disabled={isMagicTransforming}
-                       >
-                         {isMagicTransforming ? <RefreshCw size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                         <span className="hidden sm:inline">魔術棒</span>
-                         <ChevronDown size={14} />
-                       </button>
-                       <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden hidden group-hover:block animate-in fade-in slide-in-from-top-2 z-50">
-                          <div className="p-2 space-y-1">
-                             <div className="text-xs font-semibold text-gray-400 px-2 py-1 uppercase tracking-wider flex items-center gap-1">
-                               <Languages size={12} /> 翻譯 (Translate)
-                             </div>
-                             <button onClick={() => handleMagicTransform("Translate all text to English")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">English</button>
-                             <button onClick={() => handleMagicTransform("Translate all text to Japanese")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">日本語</button>
-                             <button onClick={() => handleMagicTransform("Translate all text to Spanish")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">Español</button>
-                             
-                             <div className="h-px bg-gray-100 my-1"></div>
-                             
-                             <div className="text-xs font-semibold text-gray-400 px-2 py-1 uppercase tracking-wider flex items-center gap-1">
-                               <TextSelect size={12} /> 改寫 (Remix)
-                             </div>
-                             <button onClick={() => handleMagicTransform("Summarize content to be 50% shorter")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">精簡摘要 (Summarize)</button>
-                             <button onClick={() => handleMagicTransform("Expand content with more details and explanations")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">擴充詳述 (Expand)</button>
-                          </div>
-                       </div>
-                    </div>
+                    <>
+                      <div className="relative group mr-1">
+                         <button 
+                           className="p-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1 text-sm font-medium hover:bg-indigo-100 transition-colors"
+                           disabled={isMagicTransforming}
+                         >
+                           {isMagicTransforming ? <RefreshCw size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                           <span className="hidden sm:inline">魔術棒</span>
+                           <ChevronDown size={14} />
+                         </button>
+                         <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden hidden group-hover:block animate-in fade-in slide-in-from-top-2 z-50">
+                            <div className="p-2 space-y-1">
+                               <div className="text-xs font-semibold text-gray-400 px-2 py-1 uppercase tracking-wider flex items-center gap-1">
+                                 <Languages size={12} /> 翻譯 (Translate)
+                               </div>
+                               <button onClick={() => handleMagicTransform("Translate all text to English")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">English</button>
+                               <button onClick={() => handleMagicTransform("Translate all text to Japanese")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">日本語</button>
+                               <button onClick={() => handleMagicTransform("Translate all text to Spanish")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">Español</button>
+                               
+                               <div className="h-px bg-gray-100 my-1"></div>
+                               
+                               <div className="text-xs font-semibold text-gray-400 px-2 py-1 uppercase tracking-wider flex items-center gap-1">
+                                 <TextSelect size={12} /> 改寫 (Remix)
+                               </div>
+                               <button onClick={() => handleMagicTransform("Summarize content to be 50% shorter")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">精簡摘要 (Summarize)</button>
+                               <button onClick={() => handleMagicTransform("Expand content with more details and explanations")} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 rounded-lg">擴充詳述 (Expand)</button>
+                            </div>
+                         </div>
+                      </div>
+
+                      <button 
+                        onClick={() => setIsSocialModalOpen(true)}
+                        className="p-2 rounded-lg bg-pink-50 text-pink-700 border border-pink-200 flex items-center gap-1 text-sm font-medium hover:bg-pink-100 transition-colors mr-2"
+                        title="社群行銷套件"
+                      >
+                         <Share2 size={16} /> <span className="hidden sm:inline">Social</span>
+                      </button>
+                    </>
                   )}
 
                   {/* Color Picker Override - Disable if Brand Color is enforced */}
@@ -888,16 +960,30 @@ const App: React.FC = () => {
           <div className="flex flex-col items-center space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {mode === 'layout' && data && (
               <>
-                <div className="bg-blue-50 text-blue-800 px-6 py-3 rounded-full text-sm font-medium flex items-center gap-2 border border-blue-100 shadow-sm">
-                  <Pencil size={16} /> 將滑鼠移至任何區塊即可進行 AI 修改與修正，或點擊圖示進行更換
+                <div className="flex items-center gap-3">
+                   <div className="bg-blue-50 text-blue-800 px-6 py-3 rounded-full text-sm font-medium flex items-center gap-2 border border-blue-100 shadow-sm">
+                     <Pencil size={16} /> 將滑鼠移至任何區塊即可進行 AI 修改與修正，或點擊圖示進行更換
+                   </div>
+                   
+                   {/* Motion Toggle */}
+                   <button 
+                     onClick={() => setIsMotionEnabled(!isMotionEnabled)}
+                     className={`px-4 py-2.5 rounded-full text-sm font-medium flex items-center gap-2 border transition-colors ${isMotionEnabled ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                     title="啟用進場動畫與視覺效果"
+                   >
+                      <PlayCircle size={18} /> 動態效果 (Motion): {isMotionEnabled ? 'ON' : 'OFF'}
+                   </button>
                 </div>
+
                 <div ref={infographicRef} className="w-full flex justify-center">
                   <InfographicView 
                      data={data} 
                      onEdit={handleEditClick} 
                      onIconEdit={handleIconEditClick}
+                     onReorder={handleReorder}
                      customThemeColor={customColor}
                      brandConfig={brandConfig}
+                     isMotionEnabled={isMotionEnabled}
                   />
                 </div>
               </>
@@ -909,11 +995,17 @@ const App: React.FC = () => {
                 <div className="w-full flex justify-center">
                   <img src={fullImageUrl} alt="AI Generated Infographic" className="rounded-lg shadow-inner max-h-[80vh] w-auto" />
                 </div>
-                <div className="mt-4 flex justify-center">
-                  <Button onClick={handleDownloadFullImage}>
+                <div className="mt-4 flex justify-center gap-2">
+                  <Button onClick={handleDownloadFullImage} variant="outline">
                     <Download size={18} /> 下載圖片 (PNG)
                   </Button>
+                  <Button onClick={handleImageRefineClick} variant="primary" className="bg-purple-600 hover:bg-purple-700">
+                    <Eraser size={18} /> 修正圖片 (重新繪製)
+                  </Button>
                 </div>
+                <p className="text-xs text-center text-gray-400 mt-2">
+                   注意：全圖模式為點陣圖，使用「修正」將會依照您的指示讓 AI 重新繪製整張圖片。
+                </p>
               </div>
             )}
           </div>
@@ -925,10 +1017,13 @@ const App: React.FC = () => {
         onClose={() => setIsEditModalOpen(false)}
         onConfirm={handleRefineSubmit}
         isLoading={isRefining}
-        sectionLabel={editingSection?.type === 'title' ? '標題' : 
-                      editingSection?.type === 'subtitle' ? '副標題' : 
-                      editingSection?.type === 'section' ? '內容區塊' : 
-                      editingSection?.type === 'statistic' ? '數據' : '結語'}
+        sectionLabel={
+          isImageRefineMode ? '整張圖片 (Image Re-generation)' :
+          editingSection?.type === 'title' ? '標題' : 
+          editingSection?.type === 'subtitle' ? '副標題' : 
+          editingSection?.type === 'section' ? '內容區塊' : 
+          editingSection?.type === 'statistic' ? '數據' : '結語'
+        }
       />
       
       <SettingsModal 
@@ -942,6 +1037,12 @@ const App: React.FC = () => {
         isOpen={isIconPickerOpen}
         onClose={() => setIsIconPickerOpen(false)}
         onSelect={handleIconSelect}
+      />
+
+      <SocialMediaModal 
+        isOpen={isSocialModalOpen}
+        onClose={() => setIsSocialModalOpen(false)}
+        onGenerate={handleSocialGenerate}
       />
     </div>
   );

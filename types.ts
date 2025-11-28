@@ -81,3 +81,5 @@ export interface HistoryItem {
   customColor: string;
   brandConfig?: BrandConfig;
 }
+
+export type SocialPlatform = 'instagram' | 'linkedin' | 'twitter' | 'facebook';

@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio } from "../types";
+import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio, SocialPlatform } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -153,7 +153,8 @@ export const generateFullInfographicImage = async (
   url?: string,
   brandConfig?: BrandConfig,
   customStylePrompt?: string,
-  aspectRatio: InfographicAspectRatio = 'vertical'
+  aspectRatio: InfographicAspectRatio = 'vertical',
+  refinementInstruction?: string // NEW: Instruction to fix the image
 ): Promise<string | undefined> => {
   
   let processedText = text;
@@ -187,8 +188,20 @@ export const generateFullInfographicImage = async (
   
   const currentRatio = ratioConfig[aspectRatio];
 
+  let correctionHeader = "";
+  if (refinementInstruction) {
+    correctionHeader = `
+    *** CRITICAL CORRECTION INSTRUCTION ***
+    The user is asking to RE-GENERATE this image with the following specific correction. 
+    You MUST prioritize this instruction over original content if they conflict:
+    "${refinementInstruction}"
+    *****************************************
+    `;
+  }
+
   const promptText = `Create a high-quality, single-page ${currentRatio.desc} infographic in Traditional Chinese (Taiwan) based on the provided content.
   
+  ${correctionHeader}
   ${styleDescription}
   ${brandingInstructions}
   
@@ -449,5 +462,50 @@ export const transformInfographic = async (
   } catch (e) {
     console.error("Transformation error", e);
     throw e;
+  }
+};
+
+// NEW: Generate social media captions
+export const generateSocialCaption = async (
+  data: InfographicData,
+  platform: SocialPlatform
+): Promise<string> => {
+  
+  // Lightweight data summary for prompt
+  const summary = {
+    title: data.mainTitle,
+    subtitle: data.subtitle,
+    keyPoints: data.sections.map(s => s.title),
+    stats: data.statistics.map(s => `${s.label}: ${s.value}`),
+    conclusion: data.conclusion
+  };
+
+  const platformInstructions = {
+    instagram: "Write a catchy caption for Instagram. Use 10-15 relevant hashtags. Be engaging and visual. Include emojis.",
+    linkedin: "Write a professional post for LinkedIn. Focus on industry insights, key takeaways, and engagement. Use a few professional hashtags.",
+    twitter: "Write a thread of 3 short tweets or a single impactful tweet (max 280 chars). Focus on the hook and value.",
+    facebook: "Write an engaging post for Facebook. Encourage sharing and discussion. Tone should be friendly yet informative."
+  };
+
+  const prompt = `
+  Act as a social media expert.
+  Write a caption for ${platform} based on this infographic data.
+  
+  Platform Rule: ${platformInstructions[platform]}
+  Language: Traditional Chinese (Taiwan).
+  
+  Data:
+  ${JSON.stringify(summary)}
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt
+    });
+    return response.text || "Failed to generate caption.";
+  } catch (e) {
+    console.error("Caption generation failed", e);
+    return "Error generating caption.";
   }
 };

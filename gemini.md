@@ -95,18 +95,19 @@
 - [x] **長度伸縮 (Content Remix)**:
     -   AI 自動「精簡摘要」或「擴充詳述」現有內容。
 
+### 第九階段：動態視效與影音化 (Phase 9: Motion & Video) - [進行中]
+- [x] **一鍵動畫化 (Animate It)**:
+    -   使用 `framer-motion` 為各區塊加入進場動畫（淡入、滑動）。
+    -   支援切換動畫開關。
+
+### 第十階段：自由排版 (Phase 10: Layout Freedom) - [進行中]
+- [x] **拖放排序 (Drag & Drop)**:
+    -   使用 `framer-motion` 的 `Reorder` 組件，允許使用者直覺地拖曳調整區塊順序。
+    -   支援 Grid, Timeline, Process 等不同佈局的即時重排。
+
+### 第十一階段：社群行銷套件 (Phase 11: Social Media Kit) - [進行中]
+- [x] **AI 貼文生成 (Caption Generator)**:
+    -   根據圖表內容，自動生成 Instagram (多 Hashtag)、LinkedIn (專業)、Twitter (精簡) 的貼文文案。
+    -   一鍵複製發布。
+
 ---
-
-## AI Prompt Engineering 策略筆記
-
-### 1. JSON 穩定性
-為了確保前端渲染不崩潰，我們使用了 `responseSchema` 嚴格限制輸出格式。
-*   **技巧**: 在 Prompt 中明確要求 "Output valid JSON" 並定義每個欄位的 enum (如 `iconType`)。
-
-### 2. 繁體中文在地化
-*   **挑戰**: Gemini 偶爾會輸出簡體中文。
-*   **解法**: 在 System Instruction 與 User Prompt 中雙重強調「Traditional Chinese (Taiwan)」，並在 `refineInfographicSection` 中再次提醒。
-
-### 3. 圖片生成的一致性
-*   **挑戰**: 產生的插圖風格可能不統一。
-*   **解法**: 建立 Style Dictionary (樣式字典)，將 "Comic", "Watercolor" 等關鍵字轉換為長串的具體藝術風格描述詞 (e.g., "halftone patterns, bold outlines")，強制附加在每個 Image Prompt 後方。
