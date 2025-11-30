@@ -34,6 +34,9 @@ export type InfographicLayout = 'grid' | 'timeline' | 'process' | 'comparison';
 
 export type InfographicAspectRatio = 'vertical' | 'horizontal' | 'square';
 
+// NEW: Image Model Selection
+export type ImageModelType = 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview';
+
 export interface InfographicData {
   mainTitle: string;
   subtitle: string;
@@ -64,13 +67,47 @@ export interface BrandConfig {
   toneOfVoice: string; // e.g. "Professional Academic", "Friendly", "Strict"
 }
 
+// --- Presentation Mode Types ---
+
+export type SlideLayout = 
+  | 'title_cover'      // Big title, subtitle
+  | 'section_header'   // Section divider
+  | 'text_and_image'   // Standard content with image
+  | 'bullet_list'      // List of points
+  | 'big_number'       // Focus on a stat
+  | 'quote'            // Big quote
+  | 'conclusion';      // Final slide
+
+export interface Slide {
+  id: string;
+  layout: SlideLayout;
+  title: string;
+  content: string; // Main text or bullet points (separated by newline)
+  bulletPoints?: string[]; // Optional parsed array for bullets
+  imagePrompt?: string;
+  imageUrl?: string;
+  speakerNotes: string; // AI generated script for the speaker
+  statValue?: string; // For big_number layout
+}
+
+export interface PresentationData {
+  mainTitle: string;
+  subtitle: string;
+  slides: Slide[];
+  themeColor: string;
+  style: InfographicStyle;
+}
+
+// ------------------------------
+
 export interface HistoryItem {
   id: string;
   timestamp: number;
   title: string;
   style: InfographicStyle;
-  mode: 'layout' | 'image';
+  mode: 'layout' | 'image' | 'presentation';
   data: InfographicData | null;
+  presentationData?: PresentationData | null; // Store presentation data
   fullImageUrl: string | null;
   // Context to restore inputs
   inputText: string;
@@ -80,6 +117,12 @@ export interface HistoryItem {
   customStylePrompt: string;
   customColor: string;
   brandConfig?: BrandConfig;
+  imageModel?: ImageModelType; // Added to history
 }
 
 export type SocialPlatform = 'instagram' | 'linkedin' | 'twitter' | 'facebook';
+
+export interface FileData {
+  mimeType: string;
+  data: string;
+}

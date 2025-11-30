@@ -110,4 +110,10 @@
     -   根據圖表內容，自動生成 Instagram (多 Hashtag)、LinkedIn (專業)、Twitter (精簡) 的貼文文案。
     -   一鍵複製發布。
 
----
+### 第十二階段：AI 簡報生成器 (Phase 12: Presentation Generator) - [進行中]
+- [x] **原生簡報模式 (Native Presentation Mode)**:
+    -   由 Gemini 擔任簡報設計師，規劃 6-12 頁簡報結構。
+    -   生成標題頁、內文頁、數據頁、大圖頁等不同版型。
+    -   自動生成**講者備忘錄 (Speaker Notes)**。
+- [x] **瀏覽器預覽**: 提供類似 PowerPoint 的投影片瀏覽介面。
+- [x] **原生 PPTX 匯出**: 將每一頁簡報精準轉換為 PowerPoint 投影片。

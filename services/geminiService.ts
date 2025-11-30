@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio, SocialPlatform } from "../types";
+import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio, SocialPlatform, PresentationData, FileData, ImageModelType } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -85,6 +85,37 @@ const infographicSchema: Schema = {
   required: ["mainTitle", "subtitle", "layout", "sections", "statistics", "conclusion", "themeColor"]
 };
 
+const presentationSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    mainTitle: { type: Type.STRING },
+    subtitle: { type: Type.STRING },
+    themeColor: { type: Type.STRING },
+    slides: {
+      type: Type.ARRAY,
+      description: "Generate 6-12 slides based on the content. Ensure a logical flow.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          layout: { 
+            type: Type.STRING, 
+            enum: ['title_cover', 'section_header', 'text_and_image', 'bullet_list', 'big_number', 'quote', 'conclusion'],
+            description: "The visual layout template for this slide."
+          },
+          title: { type: Type.STRING, description: "Slide Headline" },
+          content: { type: Type.STRING, description: "Main body text. For bullet_list, separate points with newlines." },
+          speakerNotes: { type: Type.STRING, description: "A script for the speaker to say while presenting this slide." },
+          imagePrompt: { type: Type.STRING, description: "English prompt for an illustration if needed for text_and_image or title_cover." },
+          statValue: { type: Type.STRING, description: "Only for big_number layout." }
+        },
+        required: ["id", "layout", "title", "content", "speakerNotes"]
+      }
+    }
+  },
+  required: ["mainTitle", "subtitle", "slides", "themeColor"]
+};
+
 // Helper to summarize URL content using Google Search Grounding
 export const summarizeUrlContent = async (url: string): Promise<string> => {
   if (!url) return "";
@@ -108,7 +139,12 @@ export const summarizeUrlContent = async (url: string): Promise<string> => {
   }
 };
 
-const generateSectionImage = async (prompt: string, style: InfographicStyle, customStylePrompt?: string): Promise<string | undefined> => {
+const generateSectionImage = async (
+  prompt: string, 
+  style: InfographicStyle, 
+  modelName: ImageModelType = 'gemini-2.5-flash-image', // Default to basic
+  customStylePrompt?: string
+): Promise<string | undefined> => {
   const stylePrompts = {
     professional: "flat vector illustration, corporate memphis style, clean, blue and teal tones, white background, professional business art, minimalist details, high quality",
     comic: "comic book style illustration, bold outlines, vibrant colors, pop art, dynamic action, halftone patterns, graphic novel style",
@@ -120,12 +156,23 @@ const generateSectionImage = async (prompt: string, style: InfographicStyle, cus
 
   const fullPrompt = `${prompt}. Style: ${stylePrompts[style]}. No text in image.`;
 
+  const config: any = {};
+  
+  // Apply specific configs for the advanced model to ensure good aspect ratio
+  if (modelName === 'gemini-3-pro-image-preview') {
+    config.imageConfig = {
+      aspectRatio: '16:9',
+      imageSize: '1K'
+    };
+  }
+
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: modelName,
       contents: {
         parts: [{ text: fullPrompt }]
       },
+      config: config
     });
     
     for (const part of response.candidates?.[0]?.content?.parts || []) {
@@ -140,10 +187,7 @@ const generateSectionImage = async (prompt: string, style: InfographicStyle, cus
   }
 };
 
-export interface FileData {
-  mimeType: string;
-  data: string;
-}
+export { FileData };
 
 // NEW: Generate a full single-page infographic image
 export const generateFullInfographicImage = async (
@@ -259,7 +303,8 @@ export const generateInfographic = async (
   url?: string,
   toneOfVoice?: string, 
   customStylePrompt?: string,
-  aspectRatio: InfographicAspectRatio = 'vertical'
+  aspectRatio: InfographicAspectRatio = 'vertical',
+  imageModel: ImageModelType = 'gemini-2.5-flash-image'
 ): Promise<InfographicData> => {
   const styleInstructions = {
     professional: "Use a clean, corporate tone. Suggest deep blues, teals, or grays for hex color. Title must be impactful.",
@@ -340,13 +385,91 @@ export const generateInfographic = async (
   // 2. Generate Images in Parallel for sections that have imagePrompt
   const imagePromises = data.sections.map(async (section) => {
     if (section.imagePrompt) {
-      const imageUrl = await generateSectionImage(section.imagePrompt, style, customStylePrompt);
+      // Pass the selected image model here
+      const imageUrl = await generateSectionImage(section.imagePrompt, style, imageModel, customStylePrompt);
       return { ...section, imageUrl };
     }
     return section;
   });
 
   data.sections = await Promise.all(imagePromises);
+
+  return data;
+};
+
+// NEW: Generate Presentation Data
+export const generatePresentation = async (
+  text: string, 
+  style: InfographicStyle,
+  files: FileData[] = [],
+  url?: string,
+  toneOfVoice?: string, 
+  customStylePrompt?: string,
+  imageModel: ImageModelType = 'gemini-3-pro-image-preview' // Default to high quality for presentations
+): Promise<PresentationData> => {
+  let processedText = text;
+
+  if (url) {
+    const urlSummary = await summarizeUrlContent(url);
+    processedText += `\n\n[External URL Content Summary (${url})]:\n${urlSummary}`;
+  }
+
+  const styleInstructions = {
+    professional: "Tone: Professional, Corporate. Theme: Deep Blue/Navy.",
+    comic: "Tone: Energetic, Fun. Theme: Yellow/Black.",
+    digital: "Tone: Tech, Futuristic. Theme: Dark Mode Green.",
+    watercolor: "Tone: Soft, Artistic. Theme: Pastel.",
+    minimalist: "Tone: Concise, Clean. Theme: White/Gray.",
+    custom: `Tone: Match this style: "${customStylePrompt}".`
+  };
+
+  const textPrompt = `Act as a professional Presentation Designer. 
+  Create a slide deck plan based on the content provided.
+  
+  **Requirements:**
+  1. **Language:** Traditional Chinese (Taiwan).
+  2. **Structure:** Create 6-12 slides. Start with a Title Cover, end with a Conclusion.
+  3. **Layouts:** Assign appropriate layouts (e.g. 'bullet_list' for points, 'text_and_image' for visual concepts, 'big_number' for stats).
+  4. **Speaker Notes:** Write a natural script for the speaker for EVERY slide.
+  5. **Visuals:** For 'text_and_image' or 'title_cover', provide an English 'imagePrompt' for an illustration.
+  6. **Style:** ${styleInstructions[style]}
+  
+  Content:
+  ${processedText.substring(0, 10000)}
+  `;
+
+  const parts: any[] = [{ text: textPrompt }];
+  files.forEach(file => {
+    parts.push({
+      inlineData: { mimeType: file.mimeType, data: file.data }
+    });
+  });
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: { parts },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: presentationSchema
+    },
+  });
+
+  if (!response.text) throw new Error("No response from Gemini");
+
+  const data = JSON.parse(response.text) as PresentationData;
+  data.style = style;
+
+  // Generate Images for slides
+  const slidePromises = data.slides.map(async (slide) => {
+    if (slide.imagePrompt) {
+      // Pass selected image model
+      const imageUrl = await generateSectionImage(slide.imagePrompt, style, imageModel, customStylePrompt);
+      return { ...slide, imageUrl };
+    }
+    return slide;
+  });
+
+  data.slides = await Promise.all(slidePromises);
 
   return data;
 };

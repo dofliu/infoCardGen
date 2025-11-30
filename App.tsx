@@ -1,20 +1,21 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { generateInfographic, refineInfographicSection, generateFullInfographicImage, transformInfographic, FileData, generateSocialCaption } from './services/geminiService';
-import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem, InfographicSection, SocialPlatform } from './types';
+import { generateInfographic, refineInfographicSection, generateFullInfographicImage, transformInfographic, FileData, generateSocialCaption, generatePresentation } from './services/geminiService';
+import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem, InfographicSection, SocialPlatform, PresentationData, ImageModelType } from './types';
 import { InfographicView } from './components/InfographicView';
+import { PresentationView } from './components/PresentationView';
 import { EditModal } from './components/EditModal';
 import { SettingsModal } from './components/SettingsModal';
 import { HistorySidebar } from './components/HistorySidebar';
 import { IconPickerModal } from './components/IconPickerModal';
 import { SocialMediaModal } from './components/SocialMediaModal';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect, Eraser, PlayCircle, Share2 } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect, Eraser, PlayCircle, Share2, MonitorPlay, Zap } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
-import { exportToPPTX } from './utils/pptExporter';
+import { exportToPPTX, exportPresentationToPPTX } from './utils/pptExporter';
 
 // Define a type for files kept as attachments (like PDFs)
 interface AttachedFile extends FileData {
@@ -44,10 +45,14 @@ const App: React.FC = () => {
   const [isMagicTransforming, setIsMagicTransforming] = useState(false);
   
   const [data, setData] = useState<InfographicData | null>(null);
+  const [presentationData, setPresentationData] = useState<PresentationData | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   
   const [selectedStyle, setSelectedStyle] = useState<InfographicStyle>('professional');
   const [aspectRatio, setAspectRatio] = useState<InfographicAspectRatio>('vertical');
+  
+  // NEW: Image Model Selection
+  const [imageModel, setImageModel] = useState<ImageModelType>('gemini-3-pro-image-preview');
 
   const [customStylePrompt, setCustomStylePrompt] = useState<string>(''); // For Infinite Style Lab
   const [customColor, setCustomColor] = useState<string>(''); // For user overrides
@@ -76,7 +81,7 @@ const App: React.FC = () => {
   // Motion & Animation
   const [isMotionEnabled, setIsMotionEnabled] = useState(false);
 
-  const [mode, setMode] = useState<'layout' | 'image'>('layout');
+  const [mode, setMode] = useState<'layout' | 'image' | 'presentation'>('layout');
   
   const infographicRef = useRef<HTMLDivElement>(null);
   
@@ -114,9 +119,10 @@ const App: React.FC = () => {
   const saveToHistory = (
     resultData: InfographicData | null, 
     resultImage: string | null,
-    currentMode: 'layout' | 'image'
+    resultPresentation: PresentationData | null,
+    currentMode: 'layout' | 'image' | 'presentation'
   ) => {
-    const title = resultData?.mainTitle || "Untitled Project";
+    const title = resultData?.mainTitle || resultPresentation?.mainTitle || "Untitled Project";
     
     // Create history item
     const newItem: HistoryItem = {
@@ -126,7 +132,8 @@ const App: React.FC = () => {
       style: selectedStyle,
       mode: currentMode,
       data: resultData,
-      fullImageUrl: resultImage, // Warning: Base64 images can be large
+      presentationData: resultPresentation,
+      fullImageUrl: resultImage,
       // Context inputs
       inputText,
       inputUrl,
@@ -134,7 +141,8 @@ const App: React.FC = () => {
       aspectRatio,
       customStylePrompt,
       customColor,
-      brandConfig
+      brandConfig,
+      imageModel // Save chosen model
     };
 
     setHistory(prev => {
@@ -159,10 +167,12 @@ const App: React.FC = () => {
     setCustomStylePrompt(item.customStylePrompt || '');
     setCustomColor(item.customColor || '');
     setMode(item.mode || 'layout');
+    if (item.imageModel) setImageModel(item.imageModel);
     if (item.brandConfig) setBrandConfig(item.brandConfig);
     
     // Restore result
     setData(item.data);
+    setPresentationData(item.presentationData || null);
     setFullImageUrl(item.fullImageUrl);
     
     setIsHistoryOpen(false);
@@ -188,8 +198,8 @@ const App: React.FC = () => {
       version: "1.0",
       timestamp: Date.now(),
       state: {
-        inputText, inputUrl, selectedStyle, aspectRatio, customStylePrompt, customColor, mode, brandConfig,
-        data, fullImageUrl
+        inputText, inputUrl, selectedStyle, aspectRatio, customStylePrompt, customColor, mode, brandConfig, imageModel,
+        data, presentationData, fullImageUrl
       }
     };
     
@@ -225,8 +235,10 @@ const App: React.FC = () => {
           setCustomStylePrompt(s.customStylePrompt || '');
           setCustomColor(s.customColor || '');
           setMode(s.mode || 'layout');
+          if (s.imageModel) setImageModel(s.imageModel);
           if (s.brandConfig) setBrandConfig(s.brandConfig);
           setData(s.data || null);
+          setPresentationData(s.presentationData || null);
           setFullImageUrl(s.fullImageUrl || null);
           
           alert("專案匯入成功！");
@@ -342,8 +354,6 @@ const App: React.FC = () => {
     }
 
     setIsLoading(true);
-    // DO NOT CLEAR DATA HERE - User wants to return to edit mode.
-    // Only clear if needed, but we want to show loading state.
     
     const serviceFiles = attachedFiles.map(f => ({
       mimeType: f.mimeType,
@@ -351,6 +361,11 @@ const App: React.FC = () => {
     }));
 
     try {
+      if (imageModel === 'gemini-3-pro-image-preview') {
+         const apiKey = await window.aistudio?.hasSelectedApiKey();
+         if (!apiKey) await window.aistudio?.openSelectKey();
+      }
+
       if (mode === 'layout') {
         const tone = brandConfig.isEnabled ? brandConfig.toneOfVoice : undefined;
         
@@ -361,13 +376,34 @@ const App: React.FC = () => {
           inputUrl, 
           tone,
           customStylePrompt,
-          aspectRatio
+          aspectRatio,
+          imageModel // Pass selected image model
         );
         setData(result);
+        setPresentationData(null);
         setFullImageUrl(null);
-        // Save to history
-        saveToHistory(result, null, 'layout');
-      } else {
+        saveToHistory(result, null, null, 'layout');
+
+      } else if (mode === 'presentation') {
+        const tone = brandConfig.isEnabled ? brandConfig.toneOfVoice : undefined;
+
+        const result = await generatePresentation(
+          inputText, 
+          selectedStyle, 
+          serviceFiles, 
+          inputUrl, 
+          tone,
+          customStylePrompt,
+          imageModel // Pass selected image model
+        );
+        setPresentationData(result);
+        setData(null);
+        setFullImageUrl(null);
+        saveToHistory(null, null, result, 'presentation');
+
+      } else { // mode === 'image'
+        // Full Image mode always uses Pro 3 internally for text layout, so we ignore imageModel selector here for the main generation, 
+        // but user must have API key anyway.
         const apiKey = await window.aistudio?.hasSelectedApiKey();
         if (!apiKey) {
            await window.aistudio?.openSelectKey();
@@ -384,15 +420,15 @@ const App: React.FC = () => {
         if (imageUrl) {
           setFullImageUrl(imageUrl);
           setData(null);
-          // Save to history
-          saveToHistory(null, imageUrl, 'image');
+          setPresentationData(null);
+          saveToHistory(null, imageUrl, null, 'image');
         } else {
           throw new Error("No image returned");
         }
       }
     } catch (error) {
       console.error("Generation failed", error);
-      alert("產生失敗。請檢查網路或 API 限制。");
+      alert("產生失敗。請檢查網路或 API 限制 (Pro 模型需付費 API Key)。");
     } finally {
       setIsLoading(false);
     }
@@ -438,12 +474,17 @@ const App: React.FC = () => {
   };
 
   const handleDownloadPPT = async () => {
-    if (!data) return;
+    if (!data && !presentationData) return;
     setIsPPTExporting(true);
     try {
-      const safeTitle = (data.mainTitle || 'infographic').replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_');
+      const safeTitle = (data?.mainTitle || presentationData?.mainTitle || 'infographic').replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_');
       const filename = `${safeTitle}_${getTimestamp()}.pptx`;
-      await exportToPPTX(data, filename, brandConfig);
+      
+      if (mode === 'presentation' && presentationData) {
+        await exportPresentationToPPTX(presentationData, filename, brandConfig);
+      } else if (data) {
+        await exportToPPTX(data, filename, brandConfig);
+      }
     } catch (error) {
       console.error("PPT export failed", error);
       alert("匯出 PowerPoint 失敗，請稍後再試。");
@@ -547,7 +588,7 @@ const App: React.FC = () => {
         
         if (newImageUrl) {
           setFullImageUrl(newImageUrl);
-          saveToHistory(null, newImageUrl, 'image');
+          saveToHistory(null, newImageUrl, null, 'image');
           setIsEditModalOpen(false);
         } else {
            throw new Error("Refine image returned nothing");
@@ -598,7 +639,14 @@ const App: React.FC = () => {
     { id: 'square', label: '方形 (IG)', icon: <Square size={16} /> },
   ];
 
-  const hasContent = data || fullImageUrl;
+  const hasContent = data || fullImageUrl || presentationData;
+
+  const getButtonLabel = () => {
+    if (isLoading) return "處理中...";
+    if (mode === 'image') return "產生 AI 全圖 (Banana Pro)";
+    if (mode === 'presentation') return "產生 AI 簡報 (Beta)";
+    return "產生資訊圖表";
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-gray-900 pb-20">
@@ -678,7 +726,7 @@ const App: React.FC = () => {
                  </div>
 
                   {/* Magic Tools Dropdown */}
-                  {mode === 'layout' && (
+                  {mode === 'layout' && data && (
                     <>
                       <div className="relative group mr-1">
                          <button 
@@ -719,7 +767,7 @@ const App: React.FC = () => {
                     </>
                   )}
 
-                  {/* Color Picker Override - Disable if Brand Color is enforced */}
+                  {/* Color Picker Override */}
                   {mode === 'layout' && !brandConfig.isEnabled && (
                     <div className="flex items-center mr-2 border-r pr-2 h-8">
                        <label title="自訂主題色" className="cursor-pointer bg-gray-100 hover:bg-gray-200 p-1.5 rounded-md flex items-center">
@@ -733,28 +781,32 @@ const App: React.FC = () => {
                     </div>
                   )}
 
-                 <Button variant="secondary" onClick={() => { setData(null); setFullImageUrl(null); setInputText(''); setAttachedFiles([]); setInputUrl(''); }} className="hidden md:flex">
+                 <Button variant="secondary" onClick={() => { setData(null); setPresentationData(null); setFullImageUrl(null); setInputText(''); setAttachedFiles([]); setInputUrl(''); }} className="hidden md:flex">
                    新專案
                  </Button>
                  
-                 {mode === 'layout' && data && (
-                   <div className="flex gap-1">
-                     <Button variant="outline" onClick={handleDownloadPDF} isLoading={isExporting} title="下載 PDF">
-                       <Download size={16} /> <span className="hidden sm:inline">PDF</span>
+                 {/* Export Buttons */}
+                 <div className="flex gap-1">
+                   {mode === 'layout' && data && (
+                      <Button variant="outline" onClick={handleDownloadPDF} isLoading={isExporting} title="下載 PDF">
+                        <Download size={16} /> <span className="hidden sm:inline">PDF</span>
+                      </Button>
+                   )}
+                   
+                   {(data || presentationData) && (
+                      <Button variant="outline" onClick={handleDownloadPPT} isLoading={isPPTExporting} title="下載 PPT" className="text-orange-600 border-orange-200 hover:bg-orange-50">
+                        <Presentation size={16} /> <span className="hidden sm:inline">PPT</span>
+                      </Button>
+                   )}
+                   
+                   {mode === 'image' && fullImageUrl && (
+                     <Button variant="outline" onClick={handleDownloadFullImage} title="下載圖片">
+                       <Download size={16} /> <span className="hidden sm:inline">下載圖片</span>
                      </Button>
-                     <Button variant="outline" onClick={handleDownloadPPT} isLoading={isPPTExporting} title="下載 PPT" className="text-orange-600 border-orange-200 hover:bg-orange-50">
-                       <Presentation size={16} /> <span className="hidden sm:inline">PPT</span>
-                     </Button>
-                   </div>
-                 )}
-                 
-                 {mode === 'image' && fullImageUrl && (
-                   <Button variant="outline" onClick={handleDownloadFullImage} title="下載圖片">
-                     <Download size={16} /> <span className="hidden sm:inline">下載圖片</span>
-                   </Button>
-                 )}
+                   )}
+                 </div>
 
-                 <Button variant="primary" onClick={() => { setData(null); setFullImageUrl(null); }} title="修改並重新產生">
+                 <Button variant="primary" onClick={() => { setData(null); setPresentationData(null); setFullImageUrl(null); }} title="修改並重新產生">
                    <Pencil size={16} /> <span className="hidden sm:inline">修改</span>
                  </Button>
                 </>
@@ -783,45 +835,86 @@ const App: React.FC = () => {
               
               <div className="p-8 space-y-6">
                 
-                <div className="flex justify-center gap-4 mb-6">
+                {/* Mode Selector */}
+                <div className="flex flex-wrap justify-center gap-4 mb-6">
                     <button 
                       onClick={() => setMode('layout')}
-                      className={`flex items-center gap-2 px-6 py-3 rounded-xl border-2 font-bold transition-all ${mode === 'layout' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                      className={`flex items-center gap-2 px-5 py-3 rounded-xl border-2 font-bold transition-all ${mode === 'layout' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
                     >
                       <LayoutTemplate size={20} />
-                      標準排版 (可編輯)
+                      標準排版
                     </button>
                     <button 
                       onClick={() => setMode('image')}
-                      className={`flex items-center gap-2 px-6 py-3 rounded-xl border-2 font-bold transition-all ${mode === 'image' ? 'border-purple-600 bg-purple-50 text-purple-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                      className={`flex items-center gap-2 px-5 py-3 rounded-xl border-2 font-bold transition-all ${mode === 'image' ? 'border-purple-600 bg-purple-50 text-purple-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
                     >
                       <ImageIcon size={20} />
                       AI 全圖繪製 (Beta)
                     </button>
+                    <button 
+                      onClick={() => setMode('presentation')}
+                      className={`flex items-center gap-2 px-5 py-3 rounded-xl border-2 font-bold transition-all ${mode === 'presentation' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                    >
+                      <MonitorPlay size={20} />
+                      AI 簡報生成 (Beta)
+                    </button>
                 </div>
                 
-                {/* Aspect Ratio Selector */}
-                <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                    <LayoutTemplate size={18} /> 版面比例 (Layout Ratio)
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                     {ratioOptions.map(option => (
-                        <button
-                           key={option.id}
-                           onClick={() => setAspectRatio(option.id)}
-                           className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all gap-2 ${
-                             aspectRatio === option.id
-                               ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                               : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                           }`}
-                        >
-                           {option.icon}
-                           <span className="text-sm font-medium">{option.label}</span>
-                        </button>
-                     ))}
+                {/* Image Model Selector - For Layout and Presentation Modes */}
+                {(mode === 'layout' || mode === 'presentation') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                       <Zap size={18} /> 插圖生成模型 (Image Model)
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                       <button
+                         onClick={() => setImageModel('gemini-2.5-flash-image')}
+                         className={`flex items-center justify-center p-3 rounded-xl border-2 transition-all gap-2 ${
+                           imageModel === 'gemini-2.5-flash-image'
+                             ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                             : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                         }`}
+                       >
+                         <span className="text-sm font-medium">標準速度 (Flash 2.5) - 免費/快速</span>
+                       </button>
+                       <button
+                         onClick={() => setImageModel('gemini-3-pro-image-preview')}
+                         className={`flex items-center justify-center p-3 rounded-xl border-2 transition-all gap-2 ${
+                           imageModel === 'gemini-3-pro-image-preview'
+                             ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                             : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                         }`}
+                       >
+                         <span className="text-sm font-medium">高畫質 (Pro 3) - 需付費 Key</span>
+                       </button>
+                    </div>
                   </div>
-                </div>
+                )}
+                
+                {/* Aspect Ratio Selector (Only for Layout/Image) */}
+                {mode !== 'presentation' && (
+                  <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                      <LayoutTemplate size={18} /> 版面比例 (Layout Ratio)
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                       {ratioOptions.map(option => (
+                          <button
+                             key={option.id}
+                             onClick={() => setAspectRatio(option.id)}
+                             className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all gap-2 ${
+                               aspectRatio === option.id
+                                 ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                                 : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                             }`}
+                          >
+                             {option.icon}
+                             <span className="text-sm font-medium">{option.label}</span>
+                          </button>
+                       ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
@@ -871,9 +964,6 @@ const App: React.FC = () => {
                          placeholder="輸入任何風格描述 (e.g. 復古黑膠唱片風格, 霓虹賽博龐克, 剪紙藝術...)"
                          autoFocus
                        />
-                       <p className="text-xs text-gray-500 mt-2">
-                         AI 將根據您的描述自動調整配色、插圖風格與文字語氣。
-                       </p>
                     </div>
                   )}
                 </div>
@@ -940,17 +1030,17 @@ const App: React.FC = () => {
                 />
 
                 <Button 
-                  className={`w-full py-4 text-lg shadow-lg ${mode === 'image' ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}
+                  className={`w-full py-4 text-lg shadow-lg ${mode === 'image' ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-200' : mode === 'presentation' ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}
                   onClick={handleGenerate}
                   disabled={!inputText.trim() && attachedFiles.length === 0 && !inputUrl.trim()}
                   isLoading={isLoading}
                 >
-                  {isLoading ? (mode === 'image' ? "AI 正在讀取並繪製全圖 (約需 20-30 秒)..." : "正在讀取網址與文件並設計中...") : (mode === 'image' ? "產生 AI 全圖 (Banana Pro)" : "產生資訊圖表")}
+                  {getButtonLabel()}
                 </Button>
                 
-                {mode === 'image' && (
+                {(mode === 'image' || imageModel === 'gemini-3-pro-image-preview') && (
                   <p className="text-xs text-center text-gray-500 mt-2">
-                    注意：AI 全圖繪製功能使用 Gemini 3 Pro Image 模型，需選擇付費 API Key。
+                    注意：使用 Gemini 3 Pro (Nano Banana 3) 模型需選擇付費 API Key。
                   </p>
                 )}
               </div>
@@ -987,6 +1077,15 @@ const App: React.FC = () => {
                   />
                 </div>
               </>
+            )}
+
+            {mode === 'presentation' && presentationData && (
+               <div className="w-full max-w-5xl">
+                 <PresentationView data={presentationData} />
+                 <div className="text-center mt-4 text-gray-500 text-sm">
+                   * 點擊上方 "下載 PPT" 按鈕即可匯出原生可編輯的 PowerPoint 檔案
+                 </div>
+               </div>
             )}
 
             {mode === 'image' && fullImageUrl && (

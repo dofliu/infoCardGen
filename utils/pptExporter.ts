@@ -1,5 +1,6 @@
+
 import pptxgen from 'pptxgenjs';
-import { InfographicData, InfographicChart, InfographicSection, BrandConfig } from '../types';
+import { InfographicData, InfographicChart, InfographicSection, BrandConfig, PresentationData } from '../types';
 
 export const exportToPPTX = async (
   data: InfographicData, 
@@ -216,5 +217,142 @@ export const exportToPPTX = async (
   });
 
   // Save the presentation
+  await pres.writeFile({ fileName: filename });
+};
+
+// NEW: Native Presentation Export
+export const exportPresentationToPPTX = async (
+  data: PresentationData,
+  filename: string,
+  brandConfig?: BrandConfig
+) => {
+  const pres = new pptxgen();
+  
+  // Theme configuration
+  const accentColor = data.themeColor.replace('#', '');
+  const textColor = data.style === 'digital' ? "FFFFFF" : "333333";
+  const bgColor = data.style === 'digital' ? "111827" : "FFFFFF";
+
+  // Master Slide Definition
+  pres.defineSlideMaster({
+    title: "MASTER_SLIDE",
+    background: { color: bgColor },
+    objects: [
+      { rect: { x: 0, y: 5.3, w: "100%", h: 0.3, fill: { color: accentColor } } } // Footer bar
+    ]
+  });
+
+  // Footer for all slides
+  const addFooter = (slide: any) => {
+    if (brandConfig?.isEnabled && brandConfig.footerText) {
+      slide.addText(brandConfig.footerText, {
+        x: 8, y: 5.35, w: 2, h: 0.25,
+        fontSize: 10,
+        color: "FFFFFF",
+        align: "right"
+      });
+    }
+  };
+
+  data.slides.forEach(slideData => {
+    const slide = pres.addSlide({ masterName: "MASTER_SLIDE" });
+    
+    // Add Speaker Notes
+    if (slideData.speakerNotes) {
+      slide.addNotes(slideData.speakerNotes);
+    }
+
+    // Handle Layouts
+    switch (slideData.layout) {
+      case 'title_cover':
+        slide.addText(slideData.title, {
+          x: 0.5, y: 2, w: '90%', h: 1.5,
+          fontSize: 48, bold: true, color: accentColor, align: 'center'
+        });
+        slide.addText(slideData.content, {
+          x: 1, y: 3.5, w: '80%', h: 1,
+          fontSize: 24, color: textColor, align: 'center'
+        });
+        break;
+
+      case 'section_header':
+        slide.background = { color: accentColor };
+        slide.addText(slideData.title, {
+          x: 0.5, y: 2.5, w: '90%', h: 1,
+          fontSize: 40, bold: true, color: "FFFFFF", align: 'center'
+        });
+        break;
+
+      case 'big_number':
+        slide.addText(slideData.title, {
+          x: 0.5, y: 0.5, w: '90%', h: 0.5,
+          fontSize: 28, bold: true, color: accentColor
+        });
+        slide.addText(slideData.statValue || "", {
+          x: 0.5, y: 2, w: '90%', h: 1.5,
+          fontSize: 72, bold: true, color: accentColor, align: 'center'
+        });
+        slide.addText(slideData.content, {
+          x: 1, y: 3.5, w: '80%', h: 1,
+          fontSize: 20, color: textColor, align: 'center'
+        });
+        break;
+
+      case 'text_and_image':
+        slide.addText(slideData.title, {
+          x: 0.5, y: 0.5, w: '90%', h: 0.5,
+          fontSize: 28, bold: true, color: accentColor
+        });
+        if (slideData.imageUrl) {
+          slide.addImage({ data: slideData.imageUrl, x: 5.5, y: 1.5, w: 4, h: 3 });
+          slide.addText(slideData.content, {
+             x: 0.5, y: 1.5, w: 4.5, h: 3.5,
+             fontSize: 18, color: textColor, bullet: true
+          });
+        } else {
+          slide.addText(slideData.content, {
+             x: 0.5, y: 1.5, w: 9, h: 3.5,
+             fontSize: 18, color: textColor, bullet: true
+          });
+        }
+        break;
+
+      case 'bullet_list':
+        slide.addText(slideData.title, {
+          x: 0.5, y: 0.5, w: '90%', h: 0.5,
+          fontSize: 28, bold: true, color: accentColor
+        });
+        slide.addText(slideData.content, {
+          x: 0.5, y: 1.5, w: 9, h: 3.5,
+          fontSize: 18, color: textColor, bullet: true, lineSpacing: 32
+        });
+        break;
+      
+      case 'quote':
+        slide.addText(`"${slideData.content}"`, {
+          x: 1, y: 2, w: 8, h: 2,
+          fontSize: 24, italic: true, color: textColor, align: 'center'
+        });
+        slide.addText(`- ${slideData.title}`, {
+          x: 1, y: 4, w: 8, h: 0.5,
+          fontSize: 16, color: accentColor, align: 'right'
+        });
+        break;
+
+      default: // Generic
+        slide.addText(slideData.title, {
+          x: 0.5, y: 0.5, w: '90%', h: 0.5,
+          fontSize: 28, bold: true, color: accentColor
+        });
+        slide.addText(slideData.content, {
+          x: 0.5, y: 1.5, w: 9, h: 3.5,
+          fontSize: 18, color: textColor
+        });
+        break;
+    }
+
+    addFooter(slide);
+  });
+
   await pres.writeFile({ fileName: filename });
 };
