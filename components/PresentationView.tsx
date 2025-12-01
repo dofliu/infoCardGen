@@ -1,14 +1,15 @@
 
 import React, { useState } from 'react';
 import { PresentationData, Slide } from '../types';
-import { ChevronLeft, ChevronRight, MessageSquare, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageSquare, Maximize2, Wand2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
   data: PresentationData;
+  onRefine?: (slideId: string, currentContent: Slide) => void; // Callback for editing
 }
 
-export const PresentationView: React.FC<Props> = ({ data }) => {
+export const PresentationView: React.FC<Props> = ({ data, onRefine }) => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [showNotes, setShowNotes] = useState(true);
 
@@ -51,6 +52,19 @@ export const PresentationView: React.FC<Props> = ({ data }) => {
             )}
           </div>
         );
+      case 'diagram_image': // NEW: Full center image for charts/tables
+        return (
+           <div className="h-full flex flex-col items-center p-8">
+              <h2 className="text-2xl font-bold mb-4" style={{ color: accentColor }}>{slide.title}</h2>
+              {slide.imageUrl ? (
+                 <div className="flex-1 w-full flex items-center justify-center overflow-hidden rounded-lg shadow-md border border-gray-200 bg-white">
+                   <img src={slide.imageUrl} alt="Diagram" className="w-full h-full object-contain" />
+                 </div>
+              ) : (
+                 <div className="flex-1 flex items-center justify-center bg-gray-100 rounded text-gray-400">Image Generating...</div>
+              )}
+           </div>
+        );
       case 'big_number':
         return (
           <div className="h-full flex flex-col justify-center items-center p-12 text-center">
@@ -71,7 +85,7 @@ export const PresentationView: React.FC<Props> = ({ data }) => {
           <div className="h-full p-12">
             <h2 className="text-3xl font-bold mb-8 pb-4 border-b" style={{ borderColor: accentColor, color: accentColor }}>{slide.title}</h2>
             <div className="text-xl leading-loose whitespace-pre-line">
-              {slide.content.split('\n').map((line, i) => (
+              {(slide.content || '').toString().split('\n').map((line, i) => (
                 <div key={i} className="flex items-start gap-3 mb-3">
                   <span className="mt-2 w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accentColor }}></span>
                   <span>{line.replace(/^[•-]\s*/, '')}</span>
@@ -139,21 +153,32 @@ export const PresentationView: React.FC<Props> = ({ data }) => {
            ))}
         </div>
 
-        {/* Speaker Notes */}
-        <div className={`w-1/3 bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex flex-col transition-all ${showNotes ? 'opacity-100' : 'opacity-50'}`}>
-           <div className="flex justify-between items-center mb-2">
-             <div className="flex items-center gap-2 text-yellow-800 font-bold text-sm">
-               <MessageSquare size={16} /> Speaker Notes
+        {/* Actions & Speaker Notes */}
+        <div className="w-1/3 flex flex-col gap-2">
+          {onRefine && (
+            <button 
+              onClick={() => onRefine(currentSlide.id, currentSlide)}
+              className="w-full py-2 bg-indigo-50 text-indigo-700 font-bold rounded-lg border border-indigo-200 hover:bg-indigo-100 flex items-center justify-center gap-2 transition-colors shadow-sm"
+            >
+              <Wand2 size={16} /> ✨ AI 修改此頁 (Refine Slide)
+            </button>
+          )}
+
+          <div className={`flex-1 bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex flex-col transition-all overflow-hidden ${showNotes ? 'opacity-100' : 'opacity-50'}`}>
+             <div className="flex justify-between items-center mb-2">
+               <div className="flex items-center gap-2 text-yellow-800 font-bold text-sm">
+                 <MessageSquare size={16} /> Speaker Notes
+               </div>
+               <button onClick={() => setShowNotes(!showNotes)} className="text-yellow-600 hover:text-yellow-800 text-xs underline">
+                 {showNotes ? 'Hide' : 'Show'}
+               </button>
              </div>
-             <button onClick={() => setShowNotes(!showNotes)} className="text-yellow-600 hover:text-yellow-800">
-               {showNotes ? 'Hide' : 'Show'}
-             </button>
-           </div>
-           {showNotes && (
-             <div className="flex-1 overflow-y-auto text-sm text-gray-700 leading-relaxed pr-2 font-serif">
-               {currentSlide.speakerNotes}
-             </div>
-           )}
+             {showNotes && (
+               <div className="flex-1 overflow-y-auto text-sm text-gray-700 leading-relaxed pr-2 font-serif">
+                 {currentSlide.speakerNotes}
+               </div>
+             )}
+          </div>
         </div>
       </div>
     </div>

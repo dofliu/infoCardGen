@@ -1,69 +1,66 @@
 
 # Instant Infographic Generator (AI 智能資訊圖表產生器)
 
-一個基於 Google Gemini API 的現代化網頁應用程式，能夠將枯燥的文字或文件瞬間轉換為精美、結構化的資訊圖表 (Infographic)。
+一個基於 Google Gemini API 的現代化網頁應用程式，能夠將枯燥的文字或文件瞬間轉換為精美、結構化的資訊圖表 (Infographic)、海報或專業簡報。
 
-## ✨ 主要功能 (Key Features)
+---
 
-*   **多格式檔案支援**:
-    *   支援上傳 **PDF, Word (.docx), Excel (.xlsx), CSV, TXT** 等文件。
-    *   自動提取文件內容並進行 AI 分析。
-*   **智慧排版 (Smart Layouts)**:
-    *   AI 自動判斷內容適合的呈現方式：**時間軸 (Timeline)**、**流程圖 (Process)**、**網格排列 (Grid)** 或 **對照比較 (Comparison)**。
-*   **多種視覺風格 (Visual Styles)**:
-    *   一鍵切換風格：**專業 (Professional)**、**漫畫 (Comic)**、**數位 (Digital)**、**水彩 (Watercolor)**、**極簡 (Minimalist)**。
-*   **AI 插圖生成**:
-    *   內建 Gemini Image Generation，根據內文自動繪製配圖。
-    *   提供 **AI 全圖繪製模式 (Banana Pro)**，直接生成單張高解析度海報。
-*   **資料視覺化**:
-    *   自動將數據轉換為 **長條圖 (Bar Charts)** 或 **圓餅圖 (Pie Charts)**。
-*   **即時編輯與修正**:
-    *   點擊任何文字區塊即可透過 AI 進行語意重寫（例如：「改得更有趣一點」、「精簡文字」）。
-*   **匯出功能**:
-    *   支援匯出為 **PDF** 文件 (圖片格式)。
-    *   支援匯出為 **PowerPoint (PPTX)** 投影片 (可編輯格式)。
-    *   全圖模式下支援下載 **PNG**。
+## 📚 使用者手冊 (User Manual)
+
+### 1. 快速開始 (Quick Start)
+
+1.  **輸入內容**: 在首頁文字框中貼上您想要轉換的文字，或是點擊上方虛線區域上傳文件（支援 PDF, Word, Excel, PPT）。您也可以輸入網址，讓 AI 自動讀取網頁內容。
+2.  **選擇模式 (Select Mode)**:
+    *   **標準排版 (Standard Layout)**: 產生 HTML 結構的互動式圖表，可編輯文字、更換圖示，適合網頁瀏覽或匯出 PDF。
+    *   **AI 全圖繪製 (AI Full Image)**: 使用 Gemini Image Generation 模型直接繪製一張完整的海報 (PNG)，視覺效果最強，但文字無法直接編輯。
+    *   **AI 簡報生成 (AI Presentation)**: 自動規劃 6-12 頁的簡報結構，並可匯出為原生可編輯的 PowerPoint (.pptx) 檔案。
+3.  **選擇風格 (Select Style)**: 點擊「專業」、「漫畫」、「數位」等按鈕切換風格。
+4.  **產生**: 點擊底部的產生按鈕，等待約 10-30 秒即可看到結果。
+
+### 2. 進階功能 (Advanced Features)
+
+#### ✨ 無限風格實驗室 (Infinite Style Lab)
+選擇 **"自訂 Custom"** 風格後，您可以輸入任何形容詞來創造獨一無二的視覺風格。
+*   *範例*: "Cyberpunk Neon 賽博龐克", "Vintage 1950s Poster 復古海報", "Paper Cutout 剪紙藝術", "Studio Ghibli Anime 吉卜力動畫"。
+
+#### 🖌️ 個人品牌設定 (Personal Branding)
+點擊右上角的 **"設定 (Settings)"** 按鈕：
+*   **固定頁尾**: 設定如「國立勤益科技大學 劉瑞弘老師團隊」的簽名檔，將自動出現在所有產出的底部。
+*   **品牌色**: 鎖定學校或企業的標準色 (CIS)，覆蓋 AI 的預設配色。
+*   **專屬語氣**: 指定 AI 使用「學術專業」、「親切幽默」或「條列式」的語氣撰寫文案。
+
+#### 🪄 魔術棒工具 (Magic Tools) - 僅限標準排版
+在產出結果頁面，點擊導覽列的 **"魔術棒"**：
+*   **翻譯 (Translate)**: 一鍵將內容翻譯成英文、日文或西班牙文，保留排版。
+*   **改寫 (Remix)**: 自動精簡內容 (Summarize) 或擴充細節 (Expand)。
+
+#### 🖼️ AI 簡報模式 (Presentation Mode)
+此模式專為製作 Slide Deck 設計：
+*   **自動排版**: AI 會根據內容決定版型（封面、大圖、條列、數據）。
+*   **複雜圖表**: 若內容包含複雜的表格或流程圖，AI 會自動生成圖解圖片 (`diagram_image`)。
+*   **修改 (Refine)**: 在預覽模式下，點擊下方的 **"✨ AI 修改此頁"**，輸入指令（如：「把這張圖換成流程圖」、「增加一點說明」），AI 會重新生成該頁投影片。
+*   **匯出 PPT**: 點擊右上角 **"PPT"** 按鈕，下載原生 .pptx 檔。
+
+### 3. 匯出與分享 (Export & Share)
+
+*   **PDF**: 將標準排版匯出為高解析度 PDF 文件。
+*   **PPT**: 將標準排版或簡報模式匯出為可編輯的 PowerPoint 檔案。
+*   **Social Kit**: 點擊 **"Social"** 按鈕，AI 會自動幫您撰寫適合 Instagram, LinkedIn, Facebook 的貼文文案。
+
+### 4. 常見問題 (FAQ)
+
+*   **Q: 上傳 PPT 檔案效果不好？**
+    *   A: 建議先將 PPT 轉存為 PDF 後再上傳，AI 對 PDF 的讀取能力最強。
+*   **Q: 全圖繪製的文字可以修改嗎？**
+    *   A: 全圖模式產生的是點陣圖 (PNG)，無法直接編輯文字。請使用下方的 **"修正圖片 (Refine)"** 按鈕，輸入指令讓 AI 重畫一張。
+*   **Q: 歷史紀錄會保存多久？**
+    *   A: 紀錄儲存在您的瀏覽器中 (LocalStorage)，最多保留 10 筆。若清除瀏覽器快取將會消失，建議定期使用 **"匯出專案 (Export)"** 進行備份。
+
+---
 
 ## 🛠 技術堆疊 (Tech Stack)
 
 *   **Frontend**: React 19, TypeScript, Tailwind CSS
-*   **AI Provider**: Google Gemini API (`gemini-2.5-flash`, `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`)
-*   **File Processing**:
-    *   `mammoth.js` (Word docx parsing)
-    *   `xlsx` (Excel/CSV parsing)
-    *   `pptxgenjs` (PowerPoint export)
-    *   `html2canvas` & `jspdf` (PDF Export)
-*   **Icons**: Lucide React
+*   **AI Provider**: Google Gemini API (`gemini-2.5-flash`, `gemini-3-pro-image-preview`)
+*   **Libraries**: `pptxgenjs` (PPT Export), `html2canvas`, `jspdf`, `framer-motion`
 
-## 🚀 快速開始 (Getting Started)
-
-1.  確認您擁有 Google AI Studio 的 API Key。
-2.  開啟應用程式。
-3.  在文字框輸入內容，或點擊上傳按鈕選擇文件。
-4.  選擇您喜歡的視覺風格。
-5.  點擊「產生資訊圖表」。
-
-## 🔮 未來展望 (Future Roadmap)
-
-我們致力於將此專案打造為專業的生產力平台，未來的開發重點包括：
-
-### 1. 個人品牌套件 (Personal Branding Kit)
-*   **固定頁尾與浮水印**: 可設定如「國立勤益科技大學 劉瑞弘老師團隊」的固定署名。
-*   **品牌色票鎖定**: 企業或學校可鎖定專屬色系 (CIS)，確保產出一致性。
-
-### 2. 無限風格實驗室 (Infinite Style Lab)
-*   **開放式風格 Prompt**: 輸入「賽博龐克」或「宮崎駿風」，AI 自動生成對應的視覺風格。
-*   **細緻畫風模擬**: 支援更多元的藝術流派與漫畫風格。
-
-### 3. 進階排版控制 (Advanced Layout)
-*   支援 **橫式 (PPT)**、**直式 (海報)** 與 **方形 (IG)** 等多種比例輸出。
-
-## 📂 文件結構說明
-
-*   `index.tsx`: 應用程式入口點。
-*   `App.tsx`: 主要應用程式邏輯與狀態管理。
-*   `services/geminiService.ts`: 與 Google Gemini API 溝通的核心服務層 (包含 Prompt Engineering)。
-*   `components/InfographicView.tsx`: 負責將結構化數據渲染為視覺圖表的組件。
-*   `components/Charts.tsx`: SVG 圖表渲染組件。
-*   `utils/pptExporter.ts`: PowerPoint 生成邏輯。
-*   `gemini.md`: 專案開發規劃與 AI 整合細節文檔。

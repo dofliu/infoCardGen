@@ -59,7 +59,7 @@
 
 ### 第三階段：個人品牌與客製化 (Phase 3: Personal Branding & Customization) - [完成]
 - [x] **品牌識別鎖定 (Brand Locking)**:
-    -   **固定頁尾/浮水印**: 允許使用者設定固定的 Footer 文字（如：「國立勤益科技大學 智慧自動化工程系 劉瑞弘老師團隊」）與 Logo。
+    -   **固定頁尾/浮水印**: 允許使用者設定固定的 Footer 文字（如：「國立勤益科技大學 劉瑞弘老師團隊」）與 Logo。
     -   **品牌色票 (Brand Colors)**: 強制鎖定 Primary/Secondary Colors，覆寫 AI 的建議，確保視覺識別一致。
 - [x] **個人化語氣 (Tone of Voice)**:
     -   設定預設 Prompt 後綴（如：「使用大學教授的口吻」、「活潑的社群小編語氣」）。
@@ -113,7 +113,8 @@
 ### 第十二階段：AI 簡報生成器 (Phase 12: Presentation Generator) - [進行中]
 - [x] **原生簡報模式 (Native Presentation Mode)**:
     -   由 Gemini 擔任簡報設計師，規劃 6-12 頁簡報結構。
-    -   生成標題頁、內文頁、數據頁、大圖頁等不同版型。
+    -   **圖解生成 (`diagram_image`)**: 針對複雜表格與流程圖，自動調用 AI 繪圖模型生成圖解。
+    -   **單頁修正 (Refine Slide)**: 支援針對特定投影片進行 AI 內容修改或圖片重繪。
     -   自動生成**講者備忘錄 (Speaker Notes)**。
 - [x] **瀏覽器預覽**: 提供類似 PowerPoint 的投影片瀏覽介面。
 - [x] **原生 PPTX 匯出**: 將每一頁簡報精準轉換為 PowerPoint 投影片。

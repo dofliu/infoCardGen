@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio, SocialPlatform, PresentationData, FileData, ImageModelType } from "../types";
+import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio, SocialPlatform, PresentationData, FileData, ImageModelType, Slide } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -93,20 +93,20 @@ const presentationSchema: Schema = {
     themeColor: { type: Type.STRING },
     slides: {
       type: Type.ARRAY,
-      description: "Generate 6-12 slides based on the content. Ensure a logical flow.",
+      description: "Generate slides based on the content. Ensure a logical flow.",
       items: {
         type: Type.OBJECT,
         properties: {
           id: { type: Type.STRING },
           layout: { 
             type: Type.STRING, 
-            enum: ['title_cover', 'section_header', 'text_and_image', 'bullet_list', 'big_number', 'quote', 'conclusion'],
-            description: "The visual layout template for this slide."
+            enum: ['title_cover', 'section_header', 'text_and_image', 'bullet_list', 'big_number', 'quote', 'diagram_image', 'conclusion'],
+            description: "The visual layout template for this slide. Use 'diagram_image' for complex tables, flowcharts, curves, or SOP diagrams."
           },
           title: { type: Type.STRING, description: "Slide Headline" },
           content: { type: Type.STRING, description: "Main body text. For bullet_list, separate points with newlines." },
           speakerNotes: { type: Type.STRING, description: "A script for the speaker to say while presenting this slide." },
-          imagePrompt: { type: Type.STRING, description: "English prompt for an illustration if needed for text_and_image or title_cover." },
+          imagePrompt: { type: Type.STRING, description: "English prompt for an illustration. MANDATORY for 'diagram_image'. Provide very detailed visual description for diagrams/tables." },
           statValue: { type: Type.STRING, description: "Only for big_number layout." }
         },
         required: ["id", "layout", "title", "content", "speakerNotes"]
@@ -405,7 +405,8 @@ export const generatePresentation = async (
   url?: string,
   toneOfVoice?: string, 
   customStylePrompt?: string,
-  imageModel: ImageModelType = 'gemini-3-pro-image-preview' // Default to high quality for presentations
+  imageModel: ImageModelType = 'gemini-3-pro-image-preview', // Default to high quality for presentations
+  targetSlideCount: number = 10 // Default to 10
 ): Promise<PresentationData> => {
   let processedText = text;
 
@@ -422,17 +423,25 @@ export const generatePresentation = async (
     minimalist: "Tone: Concise, Clean. Theme: White/Gray.",
     custom: `Tone: Match this style: "${customStylePrompt}".`
   };
+  
+  // Logic to handle high slide counts (concise mode to fit in context window)
+  let conciseInstruction = "";
+  if (targetSlideCount > 20) {
+    conciseInstruction = "IMPORTANT: Since the target slide count is high, keep the 'content' for each slide CONCISE and brief to ensure the JSON output does not get truncated. Do not write long paragraphs.";
+  }
 
   const textPrompt = `Act as a professional Presentation Designer. 
   Create a slide deck plan based on the content provided.
   
   **Requirements:**
   1. **Language:** Traditional Chinese (Taiwan).
-  2. **Structure:** Create 6-12 slides. Start with a Title Cover, end with a Conclusion.
-  3. **Layouts:** Assign appropriate layouts (e.g. 'bullet_list' for points, 'text_and_image' for visual concepts, 'big_number' for stats).
+  2. **Structure:** Create approximately ${targetSlideCount} slides. Start with a Title Cover, end with a Conclusion.
+  3. **Layouts:** Assign appropriate layouts. IMPORTANT: For complex content like tables, SOP flows, system architecture, or multi-curve graphs that are hard to format as text, USE 'diagram_image' layout. For stats use 'big_number'.
   4. **Speaker Notes:** Write a natural script for the speaker for EVERY slide.
-  5. **Visuals:** For 'text_and_image' or 'title_cover', provide an English 'imagePrompt' for an illustration.
+  5. **Visuals:** For 'text_and_image', 'title_cover' OR 'diagram_image', provide an English 'imagePrompt'.
+     - For 'diagram_image': The prompt must describe the chart/table/diagram in extreme detail so an AI image generator can draw it perfectly.
   6. **Style:** ${styleInstructions[style]}
+  ${conciseInstruction}
   
   Content:
   ${processedText.substring(0, 10000)}
@@ -472,6 +481,62 @@ export const generatePresentation = async (
   data.slides = await Promise.all(slidePromises);
 
   return data;
+};
+
+// NEW: Refine a specific slide in presentation mode
+export const refinePresentationSlide = async (
+  slide: Slide,
+  instruction: string,
+  style: InfographicStyle,
+  imageModel: ImageModelType,
+  customStylePrompt?: string
+): Promise<Slide> => {
+  
+  // 1. Ask Gemini to update the JSON structure of the slide based on instruction
+  const prompt = `
+  Act as a Presentation Designer. Refine this slide based on the user's instruction.
+  
+  Instruction: "${instruction}"
+  Current Slide JSON: ${JSON.stringify(slide)}
+  Style: ${style}
+  
+  Rules:
+  1. Return the updated Slide JSON.
+  2. If the instruction implies a visual change (e.g. "change diagram to flow chart", "make the robot blue"), UPDATE the 'imagePrompt' field to reflect this new visual requirement.
+  3. If the instruction implies text change, update 'title', 'content', or 'speakerNotes'.
+  4. **IMPORTANT**: 'content' field MUST be a single String (if multiple points, separate by newlines). Do NOT return an Array.
+  5. Keep 'id' and 'layout' unchanged unless instructed otherwise.
+  6. Language: Traditional Chinese (Taiwan).
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json"
+    }
+  });
+
+  if (!response.text) throw new Error("Refinement failed");
+  const updatedSlide = JSON.parse(response.text) as Slide;
+
+  // SAFETY: Ensure content is a string
+  if (Array.isArray(updatedSlide.content)) {
+    updatedSlide.content = (updatedSlide.content as any).join('\n');
+  }
+  updatedSlide.content = String(updatedSlide.content || '');
+
+  // 2. Check if imagePrompt has changed. If so, regenerate the image.
+  // We compare with original slide.imagePrompt
+  if (updatedSlide.imagePrompt && updatedSlide.imagePrompt !== slide.imagePrompt) {
+     const newImageUrl = await generateSectionImage(updatedSlide.imagePrompt, style, imageModel, customStylePrompt);
+     updatedSlide.imageUrl = newImageUrl;
+  } else {
+    // Keep existing image if prompt didn't change
+    updatedSlide.imageUrl = slide.imageUrl;
+  }
+
+  return updatedSlide;
 };
 
 export const refineInfographicSection = async (

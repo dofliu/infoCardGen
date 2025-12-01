@@ -76,6 +76,7 @@ export type SlideLayout =
   | 'bullet_list'      // List of points
   | 'big_number'       // Focus on a stat
   | 'quote'            // Big quote
+  | 'diagram_image'    // NEW: For complex tables, flowcharts, or curves generated as images
   | 'conclusion';      // Final slide
 
 export interface Slide {
@@ -118,6 +119,8 @@ export interface HistoryItem {
   customColor: string;
   brandConfig?: BrandConfig;
   imageModel?: ImageModelType; // Added to history
+  // Fix: Added targetSlideCount to persist presentation slide count preference
+  targetSlideCount?: number; 
 }
 
 export type SocialPlatform = 'instagram' | 'linkedin' | 'twitter' | 'facebook';

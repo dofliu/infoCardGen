@@ -2,6 +2,29 @@
 import pptxgen from 'pptxgenjs';
 import { InfographicData, InfographicChart, InfographicSection, BrandConfig, PresentationData } from '../types';
 
+// Helper to normalize HEX colors. 
+// Removes invalid characters and ensures a valid 6-char HEX.
+// Returns a fallback if invalid (e.g. user provided "Blue" or chinese text).
+const normalizeHexColor = (colorStr: string, fallback: string = "363636"): string => {
+  if (!colorStr) return fallback;
+  
+  // Remove hash
+  let hex = colorStr.replace(/[^a-fA-F0-9]/g, '');
+  
+  // If it's 3 digits, expand to 6
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('');
+  }
+
+  // If valid 6 digits, return it
+  if (hex.length === 6) {
+    return hex;
+  }
+
+  // If invalid (e.g. named color like 'blue' that turned into empty or weird string), return fallback
+  return fallback;
+};
+
 export const exportToPPTX = async (
   data: InfographicData, 
   filename: string, 
@@ -10,10 +33,9 @@ export const exportToPPTX = async (
   const pres = new pptxgen();
 
   // --- Theme Setup ---
-  // Simple mapping of styles to PPT colors
   let bgColor = "FFFFFF";
   let textColor = "363636";
-  let accentColor = data.themeColor.replace('#', '');
+  let accentColor = normalizeHexColor(data.themeColor, "4f46e5");
   
   if (data.style === 'digital') {
     bgColor = "111827"; // Dark gray
@@ -229,7 +251,7 @@ export const exportPresentationToPPTX = async (
   const pres = new pptxgen();
   
   // Theme configuration
-  const accentColor = data.themeColor.replace('#', '');
+  const accentColor = normalizeHexColor(data.themeColor, "4f46e5");
   const textColor = data.style === 'digital' ? "FFFFFF" : "333333";
   const bgColor = data.style === 'digital' ? "111827" : "FFFFFF";
 
@@ -314,6 +336,17 @@ export const exportPresentationToPPTX = async (
              x: 0.5, y: 1.5, w: 9, h: 3.5,
              fontSize: 18, color: textColor, bullet: true
           });
+        }
+        break;
+      
+      case 'diagram_image': // NEW Layout for full slide diagrams
+        slide.addText(slideData.title, {
+          x: 0.5, y: 0.2, w: '90%', h: 0.5,
+          fontSize: 24, bold: true, color: accentColor, align: 'center'
+        });
+        if (slideData.imageUrl) {
+          // Maximize image size for diagram
+          slide.addImage({ data: slideData.imageUrl, x: 1, y: 0.8, w: 8, h: 4.5 });
         }
         break;
 

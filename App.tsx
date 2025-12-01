@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { generateInfographic, refineInfographicSection, generateFullInfographicImage, transformInfographic, FileData, generateSocialCaption, generatePresentation } from './services/geminiService';
-import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem, InfographicSection, SocialPlatform, PresentationData, ImageModelType } from './types';
+import { generateInfographic, refineInfographicSection, generateFullInfographicImage, transformInfographic, FileData, generateSocialCaption, generatePresentation, refinePresentationSlide } from './services/geminiService';
+import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem, InfographicSection, SocialPlatform, PresentationData, ImageModelType, Slide } from './types';
 import { InfographicView } from './components/InfographicView';
 import { PresentationView } from './components/PresentationView';
 import { EditModal } from './components/EditModal';
@@ -10,7 +10,7 @@ import { HistorySidebar } from './components/HistorySidebar';
 import { IconPickerModal } from './components/IconPickerModal';
 import { SocialMediaModal } from './components/SocialMediaModal';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect, Eraser, PlayCircle, Share2, MonitorPlay, Zap } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect, Eraser, PlayCircle, Share2, MonitorPlay, Zap, Layers } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
@@ -53,6 +53,9 @@ const App: React.FC = () => {
   
   // NEW: Image Model Selection
   const [imageModel, setImageModel] = useState<ImageModelType>('gemini-3-pro-image-preview');
+  
+  // NEW: Target Slide Count (Default 10)
+  const [targetSlideCount, setTargetSlideCount] = useState<number>(10);
 
   const [customStylePrompt, setCustomStylePrompt] = useState<string>(''); // For Infinite Style Lab
   const [customColor, setCustomColor] = useState<string>(''); // For user overrides
@@ -91,6 +94,8 @@ const App: React.FC = () => {
   const [editingSection, setEditingSection] = useState<{type: SectionType, id: string | null, content: any} | null>(null);
   // For full image editing/regenerating
   const [isImageRefineMode, setIsImageRefineMode] = useState(false);
+  // For Presentation Slide Editing
+  const [editingSlide, setEditingSlide] = useState<Slide | null>(null);
   
   const [isRefining, setIsRefining] = useState(false);
 
@@ -142,12 +147,13 @@ const App: React.FC = () => {
       customStylePrompt,
       customColor,
       brandConfig,
-      imageModel // Save chosen model
+      imageModel, // Save chosen model
+      targetSlideCount // Save slide count
     };
 
     setHistory(prev => {
       // Limit to 10 items to prevent Quota Exceeded
-      const updated = [newItem, ...prev].slice(0, 10);
+      const updated = [newItem, ...prev].slice(10);
       try {
         localStorage.setItem('infographai_history', JSON.stringify(updated));
       } catch (e) {
@@ -168,6 +174,7 @@ const App: React.FC = () => {
     setCustomColor(item.customColor || '');
     setMode(item.mode || 'layout');
     if (item.imageModel) setImageModel(item.imageModel);
+    if (item.targetSlideCount) setTargetSlideCount(item.targetSlideCount);
     if (item.brandConfig) setBrandConfig(item.brandConfig);
     
     // Restore result
@@ -198,7 +205,7 @@ const App: React.FC = () => {
       version: "1.0",
       timestamp: Date.now(),
       state: {
-        inputText, inputUrl, selectedStyle, aspectRatio, customStylePrompt, customColor, mode, brandConfig, imageModel,
+        inputText, inputUrl, selectedStyle, aspectRatio, customStylePrompt, customColor, mode, brandConfig, imageModel, targetSlideCount,
         data, presentationData, fullImageUrl
       }
     };
@@ -237,6 +244,7 @@ const App: React.FC = () => {
           setMode(s.mode || 'layout');
           if (s.imageModel) setImageModel(s.imageModel);
           if (s.brandConfig) setBrandConfig(s.brandConfig);
+          if (s.targetSlideCount) setTargetSlideCount(s.targetSlideCount);
           setData(s.data || null);
           setPresentationData(s.presentationData || null);
           setFullImageUrl(s.fullImageUrl || null);
@@ -394,7 +402,8 @@ const App: React.FC = () => {
           inputUrl, 
           tone,
           customStylePrompt,
-          imageModel // Pass selected image model
+          imageModel, // Pass selected image model
+          targetSlideCount // Pass target count
         );
         setPresentationData(result);
         setData(null);
@@ -507,12 +516,22 @@ const App: React.FC = () => {
   const handleEditClick = (type: SectionType, id: string | null, currentContent: any) => {
     setEditingSection({ type, id, content: currentContent });
     setIsImageRefineMode(false);
+    setEditingSlide(null); // Clear slide editing state
     setIsEditModalOpen(true);
   };
 
   // Image Refine Click Handler
   const handleImageRefineClick = () => {
     setIsImageRefineMode(true);
+    setEditingSlide(null);
+    setIsEditModalOpen(true);
+  };
+
+  // Presentation Slide Refine Click Handler
+  const handlePresentationRefineClick = (slideId: string, currentContent: Slide) => {
+    setEditingSlide(currentContent);
+    setIsImageRefineMode(false);
+    setEditingSection(null);
     setIsEditModalOpen(true);
   };
 
@@ -568,7 +587,7 @@ const App: React.FC = () => {
     setIsRefining(true);
 
     try {
-      // Branch: If Image Refine Mode
+      // 1. Image Refine Mode
       if (isImageRefineMode) {
         const apiKey = await window.aistudio?.hasSelectedApiKey();
         if (!apiKey) await window.aistudio?.openSelectKey();
@@ -594,7 +613,33 @@ const App: React.FC = () => {
            throw new Error("Refine image returned nothing");
         }
       } 
-      // Branch: Standard Layout Refine Mode
+      // 2. Presentation Slide Refine Mode
+      else if (editingSlide && presentationData) {
+        // Ensure API Key if using Pro model (which is default for refined images)
+        if (imageModel === 'gemini-3-pro-image-preview') {
+           const apiKey = await window.aistudio?.hasSelectedApiKey();
+           if (!apiKey) await window.aistudio?.openSelectKey();
+        }
+
+        const updatedSlide = await refinePresentationSlide(
+          editingSlide,
+          instruction,
+          selectedStyle,
+          imageModel,
+          customStylePrompt
+        );
+
+        // Update local state
+        const updatedSlides = presentationData.slides.map(s => 
+          s.id === updatedSlide.id ? updatedSlide : s
+        );
+        const updatedPresentation = { ...presentationData, slides: updatedSlides };
+        
+        setPresentationData(updatedPresentation);
+        setIsEditModalOpen(false);
+        setEditingSlide(null);
+      }
+      // 3. Standard Layout Refine Mode
       else if (editingSection && data) {
         const updatedData = await refineInfographicSection(
           data,
@@ -656,7 +701,7 @@ const App: React.FC = () => {
             <div className="bg-indigo-600 text-white p-1.5 rounded-lg">
               <Sparkles size={20} />
             </div>
-            <span className="font-bold text-xl tracking-tight text-gray-800 hidden sm:block">InfographAI</span>
+            <span className="font-bold text-xl tracking-tight text-gray-800 hidden sm:block">資訊圖文產生器</span>
             <span className="font-bold text-xl tracking-tight text-gray-800 sm:hidden">IGAI</span>
           </div>
           
@@ -891,6 +936,35 @@ const App: React.FC = () => {
                   </div>
                 )}
                 
+                {/* Target Slide Count Slider (Only for Presentation Mode) */}
+                {mode === 'presentation' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center justify-between">
+                       <span className="flex items-center gap-2"><Layers size={18} /> 預計生成頁數 (Target Slides)</span>
+                       <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded text-xs">{targetSlideCount} 頁</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min="5" 
+                      max="30" 
+                      step="1"
+                      value={targetSlideCount} 
+                      onChange={(e) => setTargetSlideCount(parseInt(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>5</span>
+                      <span>15</span>
+                      <span>30 (MAX)</span>
+                    </div>
+                    {targetSlideCount > 20 && (
+                      <p className="text-xs text-orange-500 mt-2 flex items-center gap-1">
+                        <XCircle size={12} /> 注意：超過 20 頁可能會因 AI 輸出限制而需較長時間，內容將自動轉為精簡模式。
+                      </p>
+                    )}
+                  </div>
+                )}
+                
                 {/* Aspect Ratio Selector (Only for Layout/Image) */}
                 {mode !== 'presentation' && (
                   <div>
@@ -1040,7 +1114,7 @@ const App: React.FC = () => {
                 
                 {(mode === 'image' || imageModel === 'gemini-3-pro-image-preview') && (
                   <p className="text-xs text-center text-gray-500 mt-2">
-                    注意：使用 Gemini 3 Pro (Nano Banana 3) 模型需選擇付費 API Key。
+                    國立勤益科技大學 智慧自動化工程系 劉瑞弘老師研究團隊 2025
                   </p>
                 )}
               </div>
@@ -1081,7 +1155,10 @@ const App: React.FC = () => {
 
             {mode === 'presentation' && presentationData && (
                <div className="w-full max-w-5xl">
-                 <PresentationView data={presentationData} />
+                 <PresentationView 
+                   data={presentationData} 
+                   onRefine={handlePresentationRefineClick} 
+                 />
                  <div className="text-center mt-4 text-gray-500 text-sm">
                    * 點擊上方 "下載 PPT" 按鈕即可匯出原生可編輯的 PowerPoint 檔案
                  </div>
@@ -1118,6 +1195,7 @@ const App: React.FC = () => {
         isLoading={isRefining}
         sectionLabel={
           isImageRefineMode ? '整張圖片 (Image Re-generation)' :
+          editingSlide ? `投影片：${editingSlide.title}` :
           editingSection?.type === 'title' ? '標題' : 
           editingSection?.type === 'subtitle' ? '副標題' : 
           editingSection?.type === 'section' ? '內容區塊' : 
