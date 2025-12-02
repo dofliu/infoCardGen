@@ -283,6 +283,9 @@ export const exportPresentationToPPTX = async (
     if (slideData.speakerNotes) {
       slide.addNotes(slideData.speakerNotes);
     }
+    
+    // Safety check for content (convert to string if array)
+    const safeContent = String(slideData.content || '');
 
     // Handle Layouts
     switch (slideData.layout) {
@@ -291,7 +294,7 @@ export const exportPresentationToPPTX = async (
           x: 0.5, y: 2, w: '90%', h: 1.5,
           fontSize: 48, bold: true, color: accentColor, align: 'center'
         });
-        slide.addText(slideData.content, {
+        slide.addText(safeContent, {
           x: 1, y: 3.5, w: '80%', h: 1,
           fontSize: 24, color: textColor, align: 'center'
         });
@@ -314,7 +317,7 @@ export const exportPresentationToPPTX = async (
           x: 0.5, y: 2, w: '90%', h: 1.5,
           fontSize: 72, bold: true, color: accentColor, align: 'center'
         });
-        slide.addText(slideData.content, {
+        slide.addText(safeContent, {
           x: 1, y: 3.5, w: '80%', h: 1,
           fontSize: 20, color: textColor, align: 'center'
         });
@@ -327,12 +330,12 @@ export const exportPresentationToPPTX = async (
         });
         if (slideData.imageUrl) {
           slide.addImage({ data: slideData.imageUrl, x: 5.5, y: 1.5, w: 4, h: 3 });
-          slide.addText(slideData.content, {
+          slide.addText(safeContent, {
              x: 0.5, y: 1.5, w: 4.5, h: 3.5,
              fontSize: 18, color: textColor, bullet: true
           });
         } else {
-          slide.addText(slideData.content, {
+          slide.addText(safeContent, {
              x: 0.5, y: 1.5, w: 9, h: 3.5,
              fontSize: 18, color: textColor, bullet: true
           });
@@ -355,14 +358,14 @@ export const exportPresentationToPPTX = async (
           x: 0.5, y: 0.5, w: '90%', h: 0.5,
           fontSize: 28, bold: true, color: accentColor
         });
-        slide.addText(slideData.content, {
+        slide.addText(safeContent, {
           x: 0.5, y: 1.5, w: 9, h: 3.5,
           fontSize: 18, color: textColor, bullet: true, lineSpacing: 32
         });
         break;
       
       case 'quote':
-        slide.addText(`"${slideData.content}"`, {
+        slide.addText(`"${safeContent}"`, {
           x: 1, y: 2, w: 8, h: 2,
           fontSize: 24, italic: true, color: textColor, align: 'center'
         });
@@ -377,7 +380,7 @@ export const exportPresentationToPPTX = async (
           x: 0.5, y: 0.5, w: '90%', h: 0.5,
           fontSize: 28, bold: true, color: accentColor
         });
-        slide.addText(slideData.content, {
+        slide.addText(safeContent, {
           x: 0.5, y: 1.5, w: 9, h: 3.5,
           fontSize: 18, color: textColor
         });

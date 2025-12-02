@@ -85,7 +85,7 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine }) => {
           <div className="h-full p-12">
             <h2 className="text-3xl font-bold mb-8 pb-4 border-b" style={{ borderColor: accentColor, color: accentColor }}>{slide.title}</h2>
             <div className="text-xl leading-loose whitespace-pre-line">
-              {(slide.content || '').toString().split('\n').map((line, i) => (
+              {(String(slide.content || '')).split('\n').map((line, i) => (
                 <div key={i} className="flex items-start gap-3 mb-3">
                   <span className="mt-2 w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accentColor }}></span>
                   <span>{line.replace(/^[•-]\s*/, '')}</span>

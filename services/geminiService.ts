@@ -116,6 +116,36 @@ const presentationSchema: Schema = {
   required: ["mainTitle", "subtitle", "slides", "themeColor"]
 };
 
+// Helper to reliably parse JSON from AI response
+const parseJsonFromResponse = (text: string) => {
+  try {
+    // 1. Try direct parse
+    return JSON.parse(text);
+  } catch (e) {
+    // 2. Try extracting from markdown ```json ... ```
+    const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/```\s*([\s\S]*?)\s*```/);
+    if (match && match[1]) {
+      try {
+        return JSON.parse(match[1]);
+      } catch (e2) {
+        // continue
+      }
+    }
+    // 3. Try finding first { and last }
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      try {
+        return JSON.parse(text.substring(firstBrace, lastBrace + 1));
+      } catch (e3) {
+        // continue
+      }
+    }
+    console.error("Failed to parse JSON", text);
+    throw new Error("AI response was not valid JSON");
+  }
+};
+
 // Helper to summarize URL content using Google Search Grounding
 export const summarizeUrlContent = async (url: string): Promise<string> => {
   if (!url) return "";
@@ -378,7 +408,7 @@ export const generateInfographic = async (
     throw new Error("No response from Gemini");
   }
 
-  const data = JSON.parse(response.text) as InfographicData;
+  const data = parseJsonFromResponse(response.text) as InfographicData;
   data.style = style;
   data.aspectRatio = aspectRatio; // Store the requested ratio in data
 
@@ -465,8 +495,16 @@ export const generatePresentation = async (
 
   if (!response.text) throw new Error("No response from Gemini");
 
-  const data = JSON.parse(response.text) as PresentationData;
+  const data = parseJsonFromResponse(response.text) as PresentationData;
   data.style = style;
+  
+  // Sanitize slides
+  data.slides.forEach(slide => {
+    if (Array.isArray(slide.content)) {
+      slide.content = (slide.content as any).join('\n');
+    }
+    slide.content = String(slide.content || '');
+  });
 
   // Generate Images for slides
   const slidePromises = data.slides.map(async (slide) => {
@@ -501,7 +539,7 @@ export const refinePresentationSlide = async (
   Style: ${style}
   
   Rules:
-  1. Return the updated Slide JSON.
+  1. Return ONLY valid JSON of the updated Slide.
   2. If the instruction implies a visual change (e.g. "change diagram to flow chart", "make the robot blue"), UPDATE the 'imagePrompt' field to reflect this new visual requirement.
   3. If the instruction implies text change, update 'title', 'content', or 'speakerNotes'.
   4. **IMPORTANT**: 'content' field MUST be a single String (if multiple points, separate by newlines). Do NOT return an Array.
@@ -518,7 +556,13 @@ export const refinePresentationSlide = async (
   });
 
   if (!response.text) throw new Error("Refinement failed");
-  const updatedSlide = JSON.parse(response.text) as Slide;
+  
+  let updatedSlide = parseJsonFromResponse(response.text) as Slide;
+
+  // Handle potential "result" wrapper if AI hallucinates schema
+  if ((updatedSlide as any).result) {
+    updatedSlide = (updatedSlide as any).result;
+  }
 
   // SAFETY: Ensure content is a string
   if (Array.isArray(updatedSlide.content)) {
@@ -529,8 +573,13 @@ export const refinePresentationSlide = async (
   // 2. Check if imagePrompt has changed. If so, regenerate the image.
   // We compare with original slide.imagePrompt
   if (updatedSlide.imagePrompt && updatedSlide.imagePrompt !== slide.imagePrompt) {
-     const newImageUrl = await generateSectionImage(updatedSlide.imagePrompt, style, imageModel, customStylePrompt);
-     updatedSlide.imageUrl = newImageUrl;
+     try {
+       const newImageUrl = await generateSectionImage(updatedSlide.imagePrompt, style, imageModel, customStylePrompt);
+       updatedSlide.imageUrl = newImageUrl || slide.imageUrl; // Fallback to old image if gen fails
+     } catch (e) {
+       console.error("Refine image gen failed", e);
+       updatedSlide.imageUrl = slide.imageUrl; // Keep old image
+     }
   } else {
     // Keep existing image if prompt didn't change
     updatedSlide.imageUrl = slide.imageUrl;
@@ -575,7 +624,7 @@ export const refineInfographicSection = async (
 
   if (!response.text) throw new Error("Failed to refine content");
   
-  const result = JSON.parse(response.text);
+  const result = parseJsonFromResponse(response.text);
 
   if (sectionType === 'title') newData.mainTitle = result.result || result.mainTitle;
   else if (sectionType === 'subtitle') newData.subtitle = result.result || result.subtitle;
@@ -629,7 +678,7 @@ export const transformInfographic = async (
 
     if (!response.text) throw new Error("Transformation failed");
     
-    const transformedData = JSON.parse(response.text) as InfographicData;
+    const transformedData = parseJsonFromResponse(response.text) as InfographicData;
     
     // Merge back the images from the original data
     const mergedSections = transformedData.sections.map(newSec => {

@@ -34,6 +34,28 @@ const Editable: React.FC<EditableProps> = ({ children, type, id, content, classN
   </div>
 );
 
+// Defined outside to avoid re-creation and fix TS issues with 'key'
+interface ReorderItemWrapperProps {
+  section: InfographicSection;
+  children: React.ReactNode;
+  isMotionEnabled: boolean;
+}
+
+const ReorderItemWrapper: React.FC<ReorderItemWrapperProps> = ({ section, children, isMotionEnabled }) => {
+  return (
+    <Reorder.Item 
+      value={section} 
+      id={section.id} 
+      initial={isMotionEnabled ? { opacity: 0, y: 20 } : false}
+      animate={isMotionEnabled ? { opacity: 1, y: 0 } : false}
+      exit={{ opacity: 0 }}
+      className="w-full"
+    >
+      {children}
+    </Reorder.Item>
+  );
+};
+
 interface Props {
   data: InfographicData;
   onEdit: (type: SectionType, id: string | null, currentContent: any) => void;
@@ -182,20 +204,7 @@ export const InfographicView: React.FC<Props> = ({
     );
   };
 
-  const ReorderItemWrapper = ({ section, children }: { section: InfographicSection, children: React.ReactNode }) => {
-    return (
-      <Reorder.Item 
-        value={section} 
-        id={section.id} 
-        initial={isMotionEnabled ? { opacity: 0, y: 20 } : false}
-        animate={isMotionEnabled ? { opacity: 1, y: 0 } : false}
-        exit={{ opacity: 0 }}
-        className="w-full"
-      >
-        {children}
-      </Reorder.Item>
-    );
-  };
+  // REMOVED inner definition of ReorderItemWrapper
 
   const renderGridSection = (section: InfographicSection, index: number) => (
     <Editable 
@@ -313,6 +322,7 @@ export const InfographicView: React.FC<Props> = ({
   const renderComparisonLayout = () => {
     // For comparison, reordering is tricky if we split by index.
     // We will render drag controls but reordering the main list might flip items from left to right.
+    // We will not wrap these in ReorderItemWrapper for simplicity in this complex layout.
     const midpoint = Math.ceil(data.sections.length / 2);
     const leftSections = data.sections.slice(0, midpoint);
     const rightSections = data.sections.slice(midpoint);
@@ -367,7 +377,7 @@ export const InfographicView: React.FC<Props> = ({
           className={`grid ${layoutDims.gridCols} gap-6`}
         >
           {data.sections.map((section, index) => (
-            <ReorderItemWrapper key={section.id} section={section}>
+            <ReorderItemWrapper key={section.id} section={section} isMotionEnabled={!!isMotionEnabled}>
               {renderGridSection(section, index)}
             </ReorderItemWrapper>
           ))}
@@ -384,7 +394,7 @@ export const InfographicView: React.FC<Props> = ({
           className="flex flex-col relative pl-4 md:pl-0"
         >
           {data.sections.map((section, index) => (
-             <ReorderItemWrapper key={section.id} section={section}>
+             <ReorderItemWrapper key={section.id} section={section} isMotionEnabled={!!isMotionEnabled}>
                {renderTimelineSection(section, index)}
              </ReorderItemWrapper>
           ))}
@@ -401,17 +411,14 @@ export const InfographicView: React.FC<Props> = ({
           className="flex flex-col gap-2 max-w-2xl mx-auto"
         >
            {data.sections.map((section, index) => (
-             <ReorderItemWrapper key={section.id} section={section}>
+             <ReorderItemWrapper key={section.id} section={section} isMotionEnabled={!!isMotionEnabled}>
                {renderProcessSection(section, index)}
              </ReorderItemWrapper>
            ))}
         </Reorder.Group>
       );
     }
-    // Comparison: Complex layout, wrapping generic Reorder.Group around the logic is hard because visual split is index based.
-    // For simplicity, we wrap the whole comparison container in a non-draggable div, or just disable reordering for comparison.
-    // Or we render a Reorder.Group but visually manipulate children.
-    // Let's stick to no-reorder for Comparison for now, or just render it without reorder wrapper.
+    // Comparison: Complex layout
     else {
       return renderComparisonLayout();
     }
