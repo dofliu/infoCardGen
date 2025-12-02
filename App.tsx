@@ -45,19 +45,32 @@ const App: React.FC = () => {
   
   // Personal Branding State
   const [brandConfig, setBrandConfig] = useState<BrandConfig>(() => {
-    const saved = localStorage.getItem('infographai_brand_config');
-    return saved ? JSON.parse(saved) : {
-      isEnabled: false,
-      footerText: '',
-      brandColor: '#4f46e5',
-      toneOfVoice: ''
-    };
+    try {
+      const saved = localStorage.getItem('infographai_brand_config');
+      return saved ? JSON.parse(saved) : {
+        isEnabled: false,
+        footerText: '',
+        brandColor: '#4f46e5',
+        toneOfVoice: ''
+      };
+    } catch (e) {
+      return {
+        isEnabled: false,
+        footerText: '',
+        brandColor: '#4f46e5',
+        toneOfVoice: ''
+      };
+    }
   });
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>(() => {
-    const saved = localStorage.getItem('infographai_history');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('infographai_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
   });
 
   // Files State
@@ -70,11 +83,39 @@ const App: React.FC = () => {
 
   // Persistence Effects
   useEffect(() => {
-    localStorage.setItem('infographai_brand_config', JSON.stringify(brandConfig));
+    try {
+      localStorage.setItem('infographai_brand_config', JSON.stringify(brandConfig));
+    } catch (e) {
+      console.error("Failed to save brand config", e);
+    }
   }, [brandConfig]);
 
   useEffect(() => {
-    localStorage.setItem('infographai_history', JSON.stringify(history));
+    const saveHistorySafe = (items: HistoryItem[]) => {
+      try {
+        localStorage.setItem('infographai_history', JSON.stringify(items));
+      } catch (e: any) {
+        // Handle QuotaExceededError
+        if (
+          e.name === 'QuotaExceededError' ||
+          e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+          e.code === 22 ||
+          e.code === 1014
+        ) {
+          console.warn("LocalStorage quota exceeded. Trimming oldest history item...");
+          if (items.length > 0) {
+            // Remove the oldest item (last one in array since we prepend new ones) and retry
+            const trimmed = items.slice(0, -1);
+            saveHistorySafe(trimmed);
+          } else {
+            console.error("Unable to save history: Storage full even with single item.");
+          }
+        } else {
+          console.error("Failed to save history", e);
+        }
+      }
+    };
+    saveHistorySafe(history);
   }, [history]);
 
   const saveToHistory = (
@@ -103,7 +144,8 @@ const App: React.FC = () => {
     };
 
     setHistory(prev => {
-      const newHistory = [newItem, ...prev].slice(0, 10); // Limit to 10
+      // Limit to 5 items to prevent rapid quota usage with large images
+      const newHistory = [newItem, ...prev].slice(0, 5);
       return newHistory;
     });
   };

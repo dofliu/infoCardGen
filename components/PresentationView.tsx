@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PresentationData, Slide } from '../types';
-import { ChevronLeft, ChevronRight, MessageSquare, Maximize2, Wand2, Grid, Layout } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageSquare, Maximize2, Wand2, Grid, Layout, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 
 interface Props {
@@ -15,7 +15,30 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine, onReorder })
   const [showNotes, setShowNotes] = useState(true);
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
 
-  const currentSlide = data.slides[currentSlideIndex];
+  // Defensive Check: Ensure data and slides exist
+  if (!data || !data.slides || !Array.isArray(data.slides) || data.slides.length === 0) {
+    return (
+      <div className="w-full h-96 flex flex-col items-center justify-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 text-gray-400">
+        <AlertCircle size={48} className="mb-2 opacity-50" />
+        <p className="font-medium">無法顯示投影片</p>
+        <p className="text-sm">生成的資料似乎不完整，請嘗試重新產生。</p>
+      </div>
+    );
+  }
+
+  // Ensure currentSlideIndex is always valid
+  const safeIndex = Math.min(Math.max(0, currentSlideIndex), data.slides.length - 1);
+  const currentSlide = data.slides[safeIndex];
+
+  // Sync state if index needed adjustment
+  useEffect(() => {
+    if (safeIndex !== currentSlideIndex) {
+      setCurrentSlideIndex(safeIndex);
+    }
+  }, [data.slides.length]);
+
+  if (!currentSlide) return <div className="p-8 text-center">Loading Slide...</div>;
+
   const totalSlides = data.slides.length;
 
   const nextSlide = () => setCurrentSlideIndex(prev => Math.min(prev + 1, totalSlides - 1));
@@ -23,12 +46,13 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine, onReorder })
 
   const bgColor = data.style === 'digital' ? 'bg-gray-900' : 'bg-white';
   const textColor = data.style === 'digital' ? 'text-white' : 'text-gray-900';
-  const accentColor = data.themeColor;
+  const accentColor = data.themeColor || '#4f46e5';
 
   const safeContent = (content: any) => String(content || '');
 
-  // ... (renderSlideContent function remains the same, omitted for brevity, will include full content below)
   const renderSlideContent = (slide: Slide) => {
+    if (!slide) return null;
+    
     switch (slide.layout) {
       case 'title_cover':
         return (
@@ -176,7 +200,7 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine, onReorder })
             
             {/* Slide Footer */}
             <div className="absolute bottom-4 right-6 text-sm opacity-50 font-mono">
-              {currentSlideIndex + 1} / {totalSlides}
+              {safeIndex + 1} / {totalSlides}
             </div>
           </motion.div>
         </AnimatePresence>
@@ -184,14 +208,14 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine, onReorder })
         {/* Navigation Overlays */}
         <button 
           onClick={prevSlide} 
-          disabled={currentSlideIndex === 0}
+          disabled={safeIndex === 0}
           className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/10 hover:bg-black/20 disabled:opacity-0 transition-all z-10"
         >
           <ChevronLeft size={32} />
         </button>
         <button 
           onClick={nextSlide} 
-          disabled={currentSlideIndex === totalSlides - 1}
+          disabled={safeIndex === totalSlides - 1}
           className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/10 hover:bg-black/20 disabled:opacity-0 transition-all z-10"
         >
           <ChevronRight size={32} />
@@ -206,7 +230,7 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine, onReorder })
              <button 
                key={slide.id}
                onClick={() => setCurrentSlideIndex(idx)}
-               className={`shrink-0 w-32 aspect-video rounded border-2 transition-all text-[8px] p-1 overflow-hidden text-left bg-gray-50 relative ${currentSlideIndex === idx ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 hover:border-gray-300'}`}
+               className={`shrink-0 w-32 aspect-video rounded border-2 transition-all text-[8px] p-1 overflow-hidden text-left bg-gray-50 relative ${safeIndex === idx ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 hover:border-gray-300'}`}
              >
                 <div className="font-bold truncate mb-1" style={{ color: accentColor }}>{slide.title}</div>
                 <div className="line-clamp-4 text-gray-400">{safeContent(slide.content)}</div>
