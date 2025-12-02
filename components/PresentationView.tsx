@@ -23,13 +23,16 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine }) => {
   const textColor = data.style === 'digital' ? 'text-white' : 'text-gray-900';
   const accentColor = data.themeColor;
 
+  // Helper to ensure content is always a string to prevent crashes
+  const safeContent = (content: any) => String(content || '');
+
   const renderSlideContent = (slide: Slide) => {
     switch (slide.layout) {
       case 'title_cover':
         return (
           <div className="h-full flex flex-col justify-center items-center text-center p-12">
             <h1 className="text-5xl font-bold mb-6" style={{ color: accentColor }}>{slide.title}</h1>
-            <p className={`text-2xl ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{slide.content}</p>
+            <p className={`text-2xl ${data.style === 'digital' ? 'text-gray-300' : 'text-gray-600'}`}>{safeContent(slide.content)}</p>
           </div>
         );
       case 'section_header':
@@ -43,7 +46,7 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine }) => {
           <div className="h-full flex gap-8 p-12">
             <div className="flex-1 flex flex-col justify-center">
               <h2 className="text-3xl font-bold mb-6" style={{ color: accentColor }}>{slide.title}</h2>
-              <div className="text-lg leading-relaxed whitespace-pre-line">{slide.content}</div>
+              <div className="text-lg leading-relaxed whitespace-pre-line">{safeContent(slide.content)}</div>
             </div>
             {slide.imageUrl && (
                <div className="flex-1 flex items-center justify-center">
@@ -70,13 +73,13 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine }) => {
           <div className="h-full flex flex-col justify-center items-center p-12 text-center">
             <h2 className="text-2xl font-bold mb-8 uppercase tracking-widest text-gray-400">{slide.title}</h2>
             <div className="text-[8rem] font-bold leading-none mb-6" style={{ color: accentColor }}>{slide.statValue}</div>
-            <p className="text-xl max-w-2xl">{slide.content}</p>
+            <p className="text-xl max-w-2xl">{safeContent(slide.content)}</p>
           </div>
         );
       case 'quote':
         return (
           <div className="h-full flex flex-col justify-center items-center p-16 text-center">
-            <div className="text-3xl italic font-serif leading-relaxed mb-8">"{slide.content}"</div>
+            <div className="text-3xl italic font-serif leading-relaxed mb-8">"{safeContent(slide.content)}"</div>
             <div className="text-xl font-bold self-end" style={{ color: accentColor }}>— {slide.title}</div>
           </div>
         );
@@ -85,7 +88,7 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine }) => {
           <div className="h-full p-12">
             <h2 className="text-3xl font-bold mb-8 pb-4 border-b" style={{ borderColor: accentColor, color: accentColor }}>{slide.title}</h2>
             <div className="text-xl leading-loose whitespace-pre-line">
-              {(String(slide.content || '')).split('\n').map((line, i) => (
+              {safeContent(slide.content).split('\n').map((line, i) => (
                 <div key={i} className="flex items-start gap-3 mb-3">
                   <span className="mt-2 w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accentColor }}></span>
                   <span>{line.replace(/^[•-]\s*/, '')}</span>
@@ -148,7 +151,7 @@ export const PresentationView: React.FC<Props> = ({ data, onRefine }) => {
                className={`shrink-0 w-32 aspect-video rounded border-2 transition-all text-[8px] p-1 overflow-hidden text-left bg-gray-50 ${currentSlideIndex === idx ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 hover:border-gray-300'}`}
              >
                 <div className="font-bold truncate mb-1" style={{ color: accentColor }}>{slide.title}</div>
-                <div className="line-clamp-4 text-gray-400">{slide.content}</div>
+                <div className="line-clamp-4 text-gray-400">{safeContent(slide.content)}</div>
              </button>
            ))}
         </div>

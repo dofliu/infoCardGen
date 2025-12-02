@@ -2,7 +2,8 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio, SocialPlatform, PresentationData, FileData, ImageModelType, Slide } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to get a fresh AI client instance
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const infographicSchema: Schema = {
   type: Type.OBJECT,
@@ -119,19 +120,13 @@ const presentationSchema: Schema = {
 // Helper to reliably parse JSON from AI response
 const parseJsonFromResponse = (text: string) => {
   try {
+    // 0. Clean markdown code blocks
+    let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
     // 1. Try direct parse
-    return JSON.parse(text);
+    return JSON.parse(cleanText);
   } catch (e) {
-    // 2. Try extracting from markdown ```json ... ```
-    const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/```\s*([\s\S]*?)\s*```/);
-    if (match && match[1]) {
-      try {
-        return JSON.parse(match[1]);
-      } catch (e2) {
-        // continue
-      }
-    }
-    // 3. Try finding first { and last }
+    // 2. Try finding first { and last }
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace !== -1) {
@@ -155,6 +150,7 @@ export const summarizeUrlContent = async (url: string): Promise<string> => {
   Focus on extracting key facts, statistics, main arguments, and the overall structure of the information provided on the page.`;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
@@ -197,6 +193,7 @@ const generateSectionImage = async (
   }
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelName,
       contents: {
@@ -302,6 +299,7 @@ export const generateFullInfographicImage = async (
   });
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: { parts },
@@ -394,6 +392,7 @@ export const generateInfographic = async (
   });
 
   // 1. Generate Text Structure
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: { parts },
@@ -484,6 +483,7 @@ export const generatePresentation = async (
     });
   });
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: { parts },
@@ -541,12 +541,15 @@ export const refinePresentationSlide = async (
   Rules:
   1. Return ONLY valid JSON of the updated Slide.
   2. If the instruction implies a visual change (e.g. "change diagram to flow chart", "make the robot blue"), UPDATE the 'imagePrompt' field to reflect this new visual requirement.
-  3. If the instruction implies text change, update 'title', 'content', or 'speakerNotes'.
-  4. **IMPORTANT**: 'content' field MUST be a single String (if multiple points, separate by newlines). Do NOT return an Array.
-  5. Keep 'id' and 'layout' unchanged unless instructed otherwise.
-  6. Language: Traditional Chinese (Taiwan).
+  3. If user wants to ADD AN IMAGE to a text-only slide, CHANGE the 'layout' to 'text_and_image' or 'diagram_image' and provide an 'imagePrompt'.
+  4. If the instruction implies text change, update 'title', 'content', or 'speakerNotes'.
+  5. **IMPORTANT**: 'content' field MUST be a single String. If you have multiple bullet points, join them with newline characters (\\n). Do NOT return an Array.
+  6. Keep 'id' unchanged.
+  7. Language: Traditional Chinese (Taiwan).
+  8. **CRITICAL**: If you update any colors, use HEX format (e.g. "#FF0000"). DO NOT use color names like "科技藍" or "Red".
   `;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: prompt,
@@ -570,11 +573,15 @@ export const refinePresentationSlide = async (
   }
   updatedSlide.content = String(updatedSlide.content || '');
 
-  // 2. Check if imagePrompt has changed. If so, regenerate the image.
+  // 2. Check if imagePrompt has changed OR if layout changed to a visual one from non-visual.
   // We compare with original slide.imagePrompt
-  if (updatedSlide.imagePrompt && updatedSlide.imagePrompt !== slide.imagePrompt) {
+  const isImagePromptChanged = updatedSlide.imagePrompt && updatedSlide.imagePrompt !== slide.imagePrompt;
+  const isLayoutVisualized = (slide.layout === 'bullet_list' || slide.layout === 'big_number') && 
+                             (updatedSlide.layout === 'text_and_image' || updatedSlide.layout === 'diagram_image');
+  
+  if (isImagePromptChanged || isLayoutVisualized) {
      try {
-       const newImageUrl = await generateSectionImage(updatedSlide.imagePrompt, style, imageModel, customStylePrompt);
+       const newImageUrl = await generateSectionImage(updatedSlide.imagePrompt!, style, imageModel, customStylePrompt);
        updatedSlide.imageUrl = newImageUrl || slide.imageUrl; // Fallback to old image if gen fails
      } catch (e) {
        console.error("Refine image gen failed", e);
@@ -614,6 +621,7 @@ export const refineInfographicSection = async (
   Current Content: ${targetContext}
   Return JSON with updated fields. Keep Traditional Chinese.`;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: prompt,
@@ -667,6 +675,7 @@ export const transformInfographic = async (
   `;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
@@ -736,6 +745,7 @@ export const generateSocialCaption = async (
   `;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt
