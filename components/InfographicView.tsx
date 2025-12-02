@@ -1,9 +1,9 @@
 
 import React from 'react';
-import { InfographicData, SectionType, InfographicSection, BrandConfig, InfographicAspectRatio } from '../types';
+import { InfographicData, SectionType, InfographicSection, BrandConfig, InfographicAspectRatio, InfographicChart } from '../types';
 import { IconDisplay } from './Icons';
 import { ChartRenderer } from './Charts';
-import { Pencil, ArrowDown, ArrowRightLeft, GripVertical } from 'lucide-react';
+import { Pencil, ArrowDown, ArrowRightLeft, GripVertical, Edit3 } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
 
 interface EditableProps {
@@ -60,10 +60,11 @@ interface Props {
   data: InfographicData;
   onEdit: (type: SectionType, id: string | null, currentContent: any) => void;
   onIconEdit?: (sectionId: string, currentIcon: string) => void;
-  onReorder?: (newSections: InfographicSection[]) => void; // New prop for reordering
+  onReorder?: (newSections: InfographicSection[]) => void;
+  onChartEdit?: (chart: InfographicChart) => void; // NEW prop
   customThemeColor?: string;
   brandConfig?: BrandConfig;
-  isMotionEnabled?: boolean; // New prop for animation
+  isMotionEnabled?: boolean;
 }
 
 export const InfographicView: React.FC<Props> = ({ 
@@ -71,6 +72,7 @@ export const InfographicView: React.FC<Props> = ({
   onEdit, 
   onIconEdit, 
   onReorder,
+  onChartEdit,
   customThemeColor, 
   brandConfig, 
   isMotionEnabled = false 
@@ -204,8 +206,6 @@ export const InfographicView: React.FC<Props> = ({
     );
   };
 
-  // REMOVED inner definition of ReorderItemWrapper
-
   const renderGridSection = (section: InfographicSection, index: number) => (
     <Editable 
       type="section" 
@@ -320,9 +320,6 @@ export const InfographicView: React.FC<Props> = ({
   );
 
   const renderComparisonLayout = () => {
-    // For comparison, reordering is tricky if we split by index.
-    // We will render drag controls but reordering the main list might flip items from left to right.
-    // We will not wrap these in ReorderItemWrapper for simplicity in this complex layout.
     const midpoint = Math.ceil(data.sections.length / 2);
     const leftSections = data.sections.slice(0, midpoint);
     const rightSections = data.sections.slice(midpoint);
@@ -336,7 +333,6 @@ export const InfographicView: React.FC<Props> = ({
         </div>
 
         <div className="flex flex-col md:flex-row gap-8">
-           {/* Left Column */}
            <div className="flex-1">
              <div className="text-center mb-6 pb-2 border-b-2" style={{ borderColor: activeThemeColor }}>
                <h3 className="text-2xl font-bold" style={{ color: activeThemeColor }}>{labels[0]}</h3>
@@ -346,7 +342,6 @@ export const InfographicView: React.FC<Props> = ({
              </div>
            </div>
 
-           {/* Right Column */}
            <div className="flex-1">
              <div className="text-center mb-6 pb-2 border-b-2 border-gray-400">
                <h3 className="text-2xl font-bold text-gray-600">{labels[1]}</h3>
@@ -366,8 +361,6 @@ export const InfographicView: React.FC<Props> = ({
   };
 
   const renderContent = () => {
-    // Logic for rendering Reorder.Group depending on layout
-    // Grid: Grid layout
     if (data.layout === 'grid') {
       return (
         <Reorder.Group 
@@ -384,7 +377,6 @@ export const InfographicView: React.FC<Props> = ({
         </Reorder.Group>
       );
     } 
-    // Timeline: Vertical stack
     else if (data.layout === 'timeline') {
       return (
         <Reorder.Group 
@@ -401,7 +393,6 @@ export const InfographicView: React.FC<Props> = ({
         </Reorder.Group>
       );
     }
-    // Process: Vertical stack
     else if (data.layout === 'process') {
       return (
         <Reorder.Group 
@@ -418,7 +409,6 @@ export const InfographicView: React.FC<Props> = ({
         </Reorder.Group>
       );
     }
-    // Comparison: Complex layout
     else {
       return renderComparisonLayout();
     }
@@ -487,10 +477,8 @@ export const InfographicView: React.FC<Props> = ({
         </div>
 
         <div className="flex-grow p-8 pt-0 space-y-8">
-          {/* Main Sections with Drag & Drop */}
           {renderContent()}
 
-          {/* Charts Section */}
           {data.charts && data.charts.length > 0 && (
             <div className={`p-6 rounded-xl ${data.style === 'digital' ? 'bg-gray-800/50 border border-green-500/20' : 'bg-white/50 border border-gray-100'} shadow-sm`}
                  style={data.style === 'custom' ? { borderColor: activeThemeColor, borderWidth: 1 } : {}}
@@ -498,13 +486,21 @@ export const InfographicView: React.FC<Props> = ({
                <h3 className={`text-center text-xl font-bold mb-6 ${data.style === 'digital' ? 'text-white' : 'text-gray-800'}`}>數據分析</h3>
                <div className="flex flex-wrap justify-center gap-8">
                  {data.charts.map(chart => (
-                   <ChartRenderer 
-                     key={chart.id} 
-                     chart={chart} 
-                     themeColor={activeThemeColor} 
-                     className="w-full md:w-[45%]"
-                     styleMode={data.style}
-                   />
+                   <div 
+                      key={chart.id} 
+                      className="w-full md:w-[45%] relative group cursor-pointer"
+                      onClick={() => onChartEdit && onChartEdit(chart)}
+                      title="點擊編輯圖表數據"
+                    >
+                      <ChartRenderer 
+                        chart={chart} 
+                        themeColor={activeThemeColor} 
+                        styleMode={data.style}
+                      />
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1.5 rounded-full shadow-sm border border-gray-200 text-indigo-600">
+                         <Edit3 size={16} />
+                      </div>
+                   </div>
                  ))}
                </div>
             </div>
@@ -520,7 +516,6 @@ export const InfographicView: React.FC<Props> = ({
         </Editable>
       </div>
 
-      {/* FIXED FOOTER for Personal Branding */}
       {brandConfig?.isEnabled && (brandConfig.footerText || brandConfig.logoUrl) && (
          <div className="p-4 flex items-center justify-center gap-4 border-t text-sm opacity-60 font-medium" style={{ backgroundColor: activeThemeColor, color: data.style === 'digital' ? '#111827' : '#fff' }}>
            {brandConfig.logoUrl && (

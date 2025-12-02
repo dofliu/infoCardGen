@@ -47,19 +47,19 @@
 
 ---
 
-## 既有功能優化 (Existing Feature Optimizations) - [進行中]
+## 既有功能優化 (Existing Feature Optimizations) - [完成]
 
-### Phase 3 品牌增強：Logo 支援 (Brand Logo Support)
+### Phase 3 品牌增強：Logo 支援 (Brand Logo Support) - [完成]
 *   **功能**: 在個人品牌設定中，允許上傳學校或企業的 Logo (PNG/JPG)。
 *   **應用**:
     *   **Info View**: 在頁尾簽名旁顯示 Logo。
     *   **PDF/PPT**: 自動將 Logo 嵌入到匯出的文件中（封面及內頁）。
 
-### Phase 2 圖表增強：數據編輯器 (Chart Data Editor)
-*   **規劃中**: 點擊圖表時跳出微型試算表，允許手動修正 AI 生成的錯誤數據。
+### Phase 2 圖表增強：數據編輯器 (Chart Data Editor) - [完成]
+*   **功能**: 點擊圖表時跳出微型試算表，允許手動修正 AI 生成的錯誤數據，包含數值、標籤與顏色的編輯。
 
-### Phase 12 簡報增強：投影片排序器 (Slide Sorter)
-*   **規劃中**: 提供網格視圖 (Grid View)，支援拖放排序 (Drag & Drop) 來調整投影片順序。
+### Phase 12 簡報增強：投影片排序器 (Slide Sorter) - [完成]
+*   **功能**: 在簡報預覽中提供網格視圖 (Grid View)，支援直覺的拖放排序 (Drag & Drop) 來調整投影片順序。
 
 ### Phase 6 歷史紀錄增強：視覺化縮圖 (Visual History)
 *   **規劃中**: 儲存專案時生成縮圖，讓歷史紀錄更直覺。
@@ -78,6 +78,7 @@
 - [x] **更多排版模式**:
     -   **Comparison (對照表)**: 左右兩欄對比 (Before/After, 優點/缺點)。
 - [x] **字體與配色自訂**: 開放使用者手動微調 Primary Color。
+- [x] **數據編輯器**: 手動修正圖表數據。
 
 ### 第三階段：個人品牌與客製化 (Phase 3: Personal Branding & Customization) - [完成]
 - [x] **品牌識別鎖定 (Brand Locking)**:
@@ -140,6 +141,7 @@
     -   自動生成**講者備忘錄 (Speaker Notes)**。
 - [x] **瀏覽器預覽**: 提供類似 PowerPoint 的投影片瀏覽介面。
 - [x] **原生 PPTX 匯出**: 將每一頁簡報精準轉換為 PowerPoint 投影片，包含圖解與備忘錄。
+- [x] **投影片排序器**: 網格視圖與拖放排序。
 
 ### 未來規劃 (Future Roadmap)
 
