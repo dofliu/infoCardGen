@@ -13,11 +13,21 @@
 2.  **選擇模式 (Select Mode)**:
     *   **標準排版 (Standard Layout)**: 產生 HTML 結構的互動式圖表，可編輯文字、更換圖示，適合網頁瀏覽或匯出 PDF。
     *   **AI 全圖繪製 (AI Full Image)**: 使用 Gemini Image Generation 模型直接繪製一張完整的海報 (PNG)，視覺效果最強，但文字無法直接編輯。
-    *   **AI 簡報生成 (AI Presentation)**: 自動規劃 6-12 頁的簡報結構，並可匯出為原生可編輯的 PowerPoint (.pptx) 檔案。
+    *   **AI 簡報生成 (AI Presentation)**: 自動規劃 6-30 頁的簡報結構，並可匯出為原生可編輯的 PowerPoint (.pptx) 檔案。
 3.  **選擇風格 (Select Style)**: 點擊「專業」、「漫畫」、「數位」等按鈕切換風格。
 4.  **產生**: 點擊底部的產生按鈕，等待約 10-30 秒即可看到結果。
 
 ### 2. 進階功能 (Advanced Features)
+
+#### 🖥️ AI 簡報模式 (Presentation Mode) - 新功能！
+專為製作 Slide Deck 設計：
+*   **自動排版**: AI 會根據內容決定版型（封面、大圖、條列、數據、圖解）。
+*   **圖解生成 (Diagrams)**: 若內容包含**複雜的表格、流程圖、SOP 或系統架構**，AI 會自動選擇 `diagram_image` 版型，並使用繪圖模型將其畫成圖片，解決複雜排版跑版問題。
+    *   *提示*: 建議使用 **Pro 3** 模型以獲得最佳圖解效果。
+*   **✨ 單頁修正 (Refine Slide)**: 在預覽模式下，點擊下方的 **"✨ AI 修改此頁"** 按鈕。
+    *   您可以輸入：「把這張圖換成流程圖」、「增加關於成本的說明」、「把標題改成紅色」。
+    *   AI 會根據您的指令，重新撰寫該頁內容或**重畫配圖**。
+*   **匯出 PPT**: 點擊右上角 **"PPT"** 按鈕，下載原生 .pptx 檔（含講者備忘錄）。
 
 #### ✨ 無限風格實驗室 (Infinite Style Lab)
 選擇 **"自訂 Custom"** 風格後，您可以輸入任何形容詞來創造獨一無二的視覺風格。
@@ -34,13 +44,6 @@
 *   **翻譯 (Translate)**: 一鍵將內容翻譯成英文、日文或西班牙文，保留排版。
 *   **改寫 (Remix)**: 自動精簡內容 (Summarize) 或擴充細節 (Expand)。
 
-#### 🖼️ AI 簡報模式 (Presentation Mode)
-此模式專為製作 Slide Deck 設計：
-*   **自動排版**: AI 會根據內容決定版型（封面、大圖、條列、數據）。
-*   **複雜圖表**: 若內容包含複雜的表格或流程圖，AI 會自動生成圖解圖片 (`diagram_image`)。
-*   **修改 (Refine)**: 在預覽模式下，點擊下方的 **"✨ AI 修改此頁"**，輸入指令（如：「把這張圖換成流程圖」、「增加一點說明」），AI 會重新生成該頁投影片。
-*   **匯出 PPT**: 點擊右上角 **"PPT"** 按鈕，下載原生 .pptx 檔。
-
 ### 3. 匯出與分享 (Export & Share)
 
 *   **PDF**: 將標準排版匯出為高解析度 PDF 文件。
@@ -53,6 +56,8 @@
     *   A: 建議先將 PPT 轉存為 PDF 後再上傳，AI 對 PDF 的讀取能力最強。
 *   **Q: 全圖繪製的文字可以修改嗎？**
     *   A: 全圖模式產生的是點陣圖 (PNG)，無法直接編輯文字。請使用下方的 **"修正圖片 (Refine)"** 按鈕，輸入指令讓 AI 重畫一張。
+*   **Q: 修改簡報時發生錯誤？**
+    *   A: 請確認您已選擇正確的 API Key。若圖片生成失敗，系統會保留舊圖片，僅更新文字。
 *   **Q: 歷史紀錄會保存多久？**
     *   A: 紀錄儲存在您的瀏覽器中 (LocalStorage)，最多保留 10 筆。若清除瀏覽器快取將會消失，建議定期使用 **"匯出專案 (Export)"** 進行備份。
 
@@ -63,4 +68,3 @@
 *   **Frontend**: React 19, TypeScript, Tailwind CSS
 *   **AI Provider**: Google Gemini API (`gemini-2.5-flash`, `gemini-3-pro-image-preview`)
 *   **Libraries**: `pptxgenjs` (PPT Export), `html2canvas`, `jspdf`, `framer-motion`
-

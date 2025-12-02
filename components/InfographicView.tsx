@@ -521,9 +521,12 @@ export const InfographicView: React.FC<Props> = ({
       </div>
 
       {/* FIXED FOOTER for Personal Branding */}
-      {brandConfig?.isEnabled && brandConfig.footerText && (
-         <div className="p-4 text-center border-t text-sm opacity-60 font-medium" style={{ backgroundColor: activeThemeColor, color: data.style === 'digital' ? '#111827' : '#fff' }}>
-           {brandConfig.footerText}
+      {brandConfig?.isEnabled && (brandConfig.footerText || brandConfig.logoUrl) && (
+         <div className="p-4 flex items-center justify-center gap-4 border-t text-sm opacity-60 font-medium" style={{ backgroundColor: activeThemeColor, color: data.style === 'digital' ? '#111827' : '#fff' }}>
+           {brandConfig.logoUrl && (
+             <img src={brandConfig.logoUrl} alt="Brand Logo" className="h-8 w-auto object-contain" />
+           )}
+           {brandConfig.footerText && <span>{brandConfig.footerText}</span>}
          </div>
       )}
     </div>

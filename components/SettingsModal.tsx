@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from './Button';
-import { X, Save, UserCircle } from 'lucide-react';
+import { X, Save, UserCircle, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 import { BrandConfig } from '../types';
 
 interface SettingsModalProps {
@@ -17,12 +18,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSave
 }) => {
   const [tempConfig, setTempConfig] = useState<BrandConfig>(config);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setTempConfig(config);
     }
   }, [isOpen, config]);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTempConfig({ ...tempConfig, logoUrl: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeLogo = () => {
+    setTempConfig({ ...tempConfig, logoUrl: undefined });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   if (!isOpen) return null;
 
@@ -33,7 +51,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
         <div className="p-5 border-b flex justify-between items-center bg-gray-50">
           <div className="flex items-center gap-2 text-indigo-700">
             <UserCircle size={24} />
@@ -44,7 +62,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
         
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto">
           <div className="flex items-center justify-between bg-indigo-50 p-4 rounded-xl border border-indigo-100">
             <div>
               <span className="font-semibold text-gray-800 block">啟用個人品牌</span>
@@ -61,7 +79,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </label>
           </div>
 
-          <div className={`space-y-4 transition-opacity duration-200 ${tempConfig.isEnabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+          <div className={`space-y-5 transition-opacity duration-200 ${tempConfig.isEnabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+            
+            {/* Logo Upload Section */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                品牌 Logo / 校徽 (Brand Logo)
+              </label>
+              <div className="flex items-start gap-4">
+                <div 
+                  className={`w-24 h-24 border-2 border-dashed rounded-xl flex items-center justify-center relative bg-gray-50 ${!tempConfig.logoUrl ? 'border-gray-300' : 'border-indigo-300 bg-white'}`}
+                >
+                  {tempConfig.logoUrl ? (
+                    <img src={tempConfig.logoUrl} alt="Logo Preview" className="w-full h-full object-contain p-1 rounded-xl" />
+                  ) : (
+                    <ImageIcon className="text-gray-300" size={32} />
+                  )}
+                </div>
+                
+                <div className="flex flex-col gap-2">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    ref={fileInputRef} 
+                    onChange={handleLogoUpload} 
+                  />
+                  <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="text-xs h-9">
+                    <Upload size={14} /> 上傳圖片
+                  </Button>
+                  {tempConfig.logoUrl && (
+                    <Button variant="ghost" onClick={removeLogo} className="text-xs h-9 text-red-500 hover:text-red-600 hover:bg-red-50">
+                      <Trash2 size={14} /> 移除 Logo
+                    </Button>
+                  )}
+                  <p className="text-xs text-gray-500">建議使用去背 PNG 檔</p>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 固定頁尾署名 (Footer Signature)

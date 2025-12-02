@@ -71,14 +71,22 @@ export const exportToPPTX = async (
     align: 'center'
   });
 
-  // Branding Footer
-  if (brandConfig?.isEnabled && brandConfig.footerText) {
-    slideCover.addText(brandConfig.footerText, {
-      x: 0, y: '90%', w: '100%', h: 0.5,
-      fontSize: 12,
-      color: '888888',
-      align: 'center'
-    });
+  // Branding Footer for Cover
+  if (brandConfig?.isEnabled) {
+    if (brandConfig.logoUrl) {
+      slideCover.addImage({
+        data: brandConfig.logoUrl,
+        x: 8.5, y: 5.0, w: 1.2, h: 0.5
+      });
+    }
+    if (brandConfig.footerText) {
+      slideCover.addText(brandConfig.footerText, {
+        x: 0, y: '90%', w: '100%', h: 0.5,
+        fontSize: 12,
+        color: '888888',
+        align: 'center'
+      });
+    }
   }
 
   // --- Slide 2: Statistics ---
@@ -160,13 +168,21 @@ export const exportToPPTX = async (
     }
 
     // Add footer to every slide if branding enabled
-    if (brandConfig?.isEnabled && brandConfig.footerText) {
-      slide.addText(brandConfig.footerText, {
-        x: 8, y: 5.2, w: 2, h: 0.3,
-        fontSize: 9,
-        color: 'AAAAAA',
-        align: 'right'
-      });
+    if (brandConfig?.isEnabled) {
+      if (brandConfig.footerText) {
+        slide.addText(brandConfig.footerText, {
+          x: 4, y: 5.3, w: 4, h: 0.3,
+          fontSize: 9,
+          color: 'AAAAAA',
+          align: 'right'
+        });
+      }
+      if (brandConfig.logoUrl) {
+         slide.addImage({
+           data: brandConfig.logoUrl,
+           x: 8.5, y: 5.1, w: 1.0, h: 0.4
+         });
+      }
     }
   });
 
@@ -256,19 +272,28 @@ export const exportPresentationToPPTX = async (
   const bgColor = data.style === 'digital' ? "111827" : "FFFFFF";
 
   // Master Slide Definition
+  const masterObjects: any[] = [
+      { rect: { x: 0, y: 5.3, w: "100%", h: 0.3, fill: { color: accentColor } } } // Footer bar
+  ];
+
+  // Add Logo to Master Slide if available
+  if (brandConfig?.isEnabled && brandConfig.logoUrl) {
+    masterObjects.push({ 
+        image: { x: 9.0, y: 0.2, w: 0.8, h: 0.4, data: brandConfig.logoUrl } 
+    });
+  }
+
   pres.defineSlideMaster({
     title: "MASTER_SLIDE",
     background: { color: bgColor },
-    objects: [
-      { rect: { x: 0, y: 5.3, w: "100%", h: 0.3, fill: { color: accentColor } } } // Footer bar
-    ]
+    objects: masterObjects
   });
 
   // Footer for all slides
   const addFooter = (slide: any) => {
     if (brandConfig?.isEnabled && brandConfig.footerText) {
       slide.addText(brandConfig.footerText, {
-        x: 8, y: 5.35, w: 2, h: 0.25,
+        x: 7, y: 5.35, w: 2.8, h: 0.25,
         fontSize: 10,
         color: "FFFFFF",
         align: "right"

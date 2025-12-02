@@ -65,6 +65,7 @@ export interface BrandConfig {
   footerText: string;
   brandColor: string;
   toneOfVoice: string; // e.g. "Professional Academic", "Friendly", "Strict"
+  logoUrl?: string; // New field for Base64 image logo
 }
 
 // --- Presentation Mode Types ---
