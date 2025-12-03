@@ -83,7 +83,7 @@
 ### 第三階段：個人品牌與客製化 (Phase 3: Personal Branding & Customization) - [完成]
 - [x] **品牌識別鎖定 (Brand Locking)**:
     -   **固定頁尾/浮水印**: 允許使用者設定固定的 Footer 文字（如：「國立勤益科技大學 劉瑞弘老師團隊」）與 Logo。
-    -   **品牌色票 (Brand Colors)**: 強制鎖定 Primary/Secondary Colors，覆寫 AI 的建議，確保視覺識別一致。
+    -   **品牌色票 (Brand Colors)**: 強制鎖定 Primary/Secondary Colors，覆蓋 AI 的建議，確保視覺識別一致。
 - [x] **個人化語氣 (Tone of Voice)**:
     -   設定預設 Prompt 後綴（如：「使用大學教授的口吻」、「活潑的社群小編語氣」）。
 - [x] **設定記憶 (Config Persistence)**: 使用 `localStorage` 記錄使用者的品牌設定，無需每次重新輸入。

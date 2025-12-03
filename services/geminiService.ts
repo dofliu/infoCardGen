@@ -165,6 +165,50 @@ export const summarizeUrlContent = async (url: string): Promise<string> => {
   }
 };
 
+// Helper: Wait function for retries
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper: Retry operation wrapper with exponential backoff
+const retryOperation = async <T>(
+  operation: () => Promise<T>, 
+  retries: number = 3, 
+  delay: number = 1000
+): Promise<T> => {
+  try {
+    return await operation();
+  } catch (error) {
+    if (retries <= 0) throw error;
+    // console.warn(`Operation failed, retrying in ${delay}ms... (${retries} retries left)`);
+    await wait(delay);
+    return retryOperation(operation, retries - 1, delay * 2);
+  }
+};
+
+// Helper: Concurrency Controller (Batch Processing)
+const processItemsWithConcurrency = async <T, R>(
+  items: T[],
+  concurrency: number,
+  processor: (item: T) => Promise<R>
+): Promise<R[]> => {
+  const results: R[] = [];
+  const chunks = [];
+  
+  for (let i = 0; i < items.length; i += concurrency) {
+    chunks.push(items.slice(i, i + concurrency));
+  }
+
+  for (const chunk of chunks) {
+    const chunkResults = await Promise.all(chunk.map(processor));
+    results.push(...chunkResults);
+    // Optional small delay between batches to be nice to the API
+    if (chunks.indexOf(chunk) < chunks.length - 1) {
+      await wait(500); 
+    }
+  }
+
+  return results;
+};
+
 const generateSectionImage = async (
   prompt: string, 
   style: InfographicStyle, 
@@ -192,7 +236,8 @@ const generateSectionImage = async (
     };
   }
 
-  try {
+  // Wrap API call in retry logic
+  return retryOperation(async () => {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelName,
@@ -208,10 +253,10 @@ const generateSectionImage = async (
       }
     }
     return undefined;
-  } catch (e) {
-    console.error("Image generation failed", e);
+  }, 3, 2000).catch(e => {
+    console.error("Image generation failed after retries", e);
     return undefined;
-  }
+  });
 };
 
 export { FileData };
@@ -411,17 +456,18 @@ export const generateInfographic = async (
   data.style = style;
   data.aspectRatio = aspectRatio; // Store the requested ratio in data
 
-  // 2. Generate Images in Parallel for sections that have imagePrompt
-  const imagePromises = data.sections.map(async (section) => {
-    if (section.imagePrompt) {
-      // Pass the selected image model here
-      const imageUrl = await generateSectionImage(section.imagePrompt, style, imageModel, customStylePrompt);
-      return { ...section, imageUrl };
+  // 2. Generate Images in Batches (Concurrency Limited)
+  data.sections = await processItemsWithConcurrency(
+    data.sections,
+    3, // Process 3 images at a time
+    async (section) => {
+      if (section.imagePrompt) {
+        const imageUrl = await generateSectionImage(section.imagePrompt, style, imageModel, customStylePrompt);
+        return { ...section, imageUrl };
+      }
+      return section;
     }
-    return section;
-  });
-
-  data.sections = await Promise.all(imagePromises);
+  );
 
   return data;
 };
@@ -506,17 +552,19 @@ export const generatePresentation = async (
     slide.content = String(slide.content || '');
   });
 
-  // Generate Images for slides
-  const slidePromises = data.slides.map(async (slide) => {
-    if (slide.imagePrompt) {
-      // Pass selected image model
-      const imageUrl = await generateSectionImage(slide.imagePrompt, style, imageModel, customStylePrompt);
-      return { ...slide, imageUrl };
+  // Generate Images for slides using Concurrency Control
+  // Process 3 images at a time to prevent rate limits and 429 errors
+  data.slides = await processItemsWithConcurrency(
+    data.slides,
+    3,
+    async (slide) => {
+      if (slide.imagePrompt) {
+        const imageUrl = await generateSectionImage(slide.imagePrompt, style, imageModel, customStylePrompt);
+        return { ...slide, imageUrl };
+      }
+      return slide;
     }
-    return slide;
-  });
-
-  data.slides = await Promise.all(slidePromises);
+  );
 
   return data;
 };
@@ -581,6 +629,7 @@ export const refinePresentationSlide = async (
   
   if (isImagePromptChanged || isLayoutVisualized) {
      try {
+       // Also use retry logic here
        const newImageUrl = await generateSectionImage(updatedSlide.imagePrompt!, style, imageModel, customStylePrompt);
        updatedSlide.imageUrl = newImageUrl || slide.imageUrl; // Fallback to old image if gen fails
      } catch (e) {
