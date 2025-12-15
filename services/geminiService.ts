@@ -1,9 +1,13 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio, SocialPlatform, PresentationData, FileData, ImageModelType, Slide } from "../types";
+import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio, SocialPlatform, PresentationData, FileData, ImageModelType, Slide, ComicData, ComicPanel } from "../types";
+import { estimateCost } from "../utils/costCalculator";
 
 // Helper to get a fresh AI client instance
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// CONSTANT: User-defined high quality text instruction
+const HIGH_QUALITY_TEXT_PROMPT = "整張圖片都是4K高解析畫質、讓圖片可以放大400倍、請採用正確的繁體中文顯示、文字線條清楚、不模糊！";
 
 const infographicSchema: Schema = {
   type: Type.OBJECT,
@@ -117,6 +121,34 @@ const presentationSchema: Schema = {
   required: ["mainTitle", "subtitle", "slides", "themeColor"]
 };
 
+const comicSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    title: { type: Type.STRING },
+    storySummary: { type: Type.STRING, description: "A brief summary of the comic story" },
+    characterVisualBible: { 
+      type: Type.STRING, 
+      description: "A detailed visual description of the main characters (hair, clothes, face features) to ensure consistency across panels. e.g. 'John is a tall man with short black hair wearing a red tie and white shirt'." 
+    },
+    panels: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          panelNumber: { type: Type.NUMBER },
+          description: { type: Type.STRING, description: "What happens in this panel" },
+          dialogue: { type: Type.STRING, description: "Character speech or caption. Use 'Character: Speech'" },
+          cameraDetail: { type: Type.STRING, description: "Camera angle instruction e.g. Close-up, Wide shot, Low angle" },
+          imagePrompt: { type: Type.STRING, description: "A detailed English prompt for drawing this specific panel. Do NOT include character details here, rely on the visual bible." }
+        },
+        required: ["id", "panelNumber", "description", "dialogue", "cameraDetail", "imagePrompt"]
+      }
+    }
+  },
+  required: ["title", "storySummary", "characterVisualBible", "panels"]
+};
+
 // Helper to reliably parse JSON from AI response
 const parseJsonFromResponse = (text: string) => {
   try {
@@ -213,7 +245,8 @@ const generateSectionImage = async (
   prompt: string, 
   style: InfographicStyle, 
   modelName: ImageModelType = 'gemini-2.5-flash-image', // Default to basic
-  customStylePrompt?: string
+  customStylePrompt?: string,
+  characterDescription?: string // NEW: for consistent characters
 ): Promise<string | undefined> => {
   const stylePrompts = {
     professional: "flat vector illustration, corporate memphis style, clean, blue and teal tones, white background, professional business art, minimalist details, high quality",
@@ -224,12 +257,23 @@ const generateSectionImage = async (
     custom: customStylePrompt ? `${customStylePrompt}, artistic visualization, high quality` : "high quality unique artistic style illustration"
   };
 
-  const fullPrompt = `${prompt}. Style: ${stylePrompts[style]}. No text in image.`;
+  const isProModel = modelName === 'gemini-3-pro-image-preview';
+  
+  // If it's the Pro model, we inject the high quality text instruction and allow text (remove "No text in image")
+  // If it's the Flash model, we strictly avoid text because it's bad at it.
+  const textInstruction = isProModel 
+    ? `${HIGH_QUALITY_TEXT_PROMPT}` 
+    : "No text in image.";
+
+  // Character Consistency Injection
+  const characterPrefix = characterDescription ? `[Visual Bible: ${characterDescription}] ` : "";
+
+  const fullPrompt = `${characterPrefix}${prompt}. Style: ${stylePrompts[style]}. ${textInstruction}`;
 
   const config: any = {};
   
   // Apply specific configs for the advanced model to ensure good aspect ratio
-  if (modelName === 'gemini-3-pro-image-preview') {
+  if (isProModel) {
     config.imageConfig = {
       aspectRatio: '16:9',
       imageSize: '1K'
@@ -328,6 +372,7 @@ export const generateFullInfographicImage = async (
   - Include data visualization, icons, or illustrations relevant to the content.
   - The layout should be organized, easy to read, and visually striking.
   - Use the "Style" specified above.
+  - **${HIGH_QUALITY_TEXT_PROMPT}**
   
   Content Notes:
   ${processedText.substring(0, 6000)}`;
@@ -457,16 +502,26 @@ export const generateInfographic = async (
   data.aspectRatio = aspectRatio; // Store the requested ratio in data
 
   // 2. Generate Images in Batches (Concurrency Limited)
+  let generatedImageCount = 0;
   data.sections = await processItemsWithConcurrency(
     data.sections,
     3, // Process 3 images at a time
     async (section) => {
       if (section.imagePrompt) {
+        generatedImageCount++;
         const imageUrl = await generateSectionImage(section.imagePrompt, style, imageModel, customStylePrompt);
         return { ...section, imageUrl };
       }
       return section;
     }
+  );
+
+  // COST ESTIMATION
+  data.costEstimate = estimateCost(
+    textPrompt.length, 
+    response.text.length, 
+    generatedImageCount,
+    imageModel
   );
 
   return data;
@@ -553,17 +608,26 @@ export const generatePresentation = async (
   });
 
   // Generate Images for slides using Concurrency Control
-  // Process 3 images at a time to prevent rate limits and 429 errors
+  let generatedImageCount = 0;
   data.slides = await processItemsWithConcurrency(
     data.slides,
     3,
     async (slide) => {
       if (slide.imagePrompt) {
+        generatedImageCount++;
         const imageUrl = await generateSectionImage(slide.imagePrompt, style, imageModel, customStylePrompt);
         return { ...slide, imageUrl };
       }
       return slide;
     }
+  );
+
+  // COST ESTIMATION
+  data.costEstimate = estimateCost(
+    textPrompt.length, 
+    response.text.length, 
+    generatedImageCount,
+    imageModel
   );
 
   return data;
@@ -804,4 +868,112 @@ export const generateSocialCaption = async (
     console.error("Caption generation failed", e);
     return "Error generating caption.";
   }
+};
+
+// NEW: Generate Comic Script and Images
+export const generateComicScript = async (
+  text: string, 
+  style: InfographicStyle,
+  files: FileData[] = [],
+  url?: string,
+  customStylePrompt?: string,
+  targetPanelCount: number = 4
+): Promise<ComicData> => {
+  
+  let processedText = text;
+
+  // If URL is provided, summarize it first and append to text
+  if (url) {
+    const urlSummary = await summarizeUrlContent(url);
+    processedText += `\n\n[External URL Content Summary (${url})]:\n${urlSummary}`;
+  }
+
+  const styleDescription = style === 'custom' ? customStylePrompt : style;
+
+  const prompt = `
+  Act as a Comic Book Writer and Director.
+  Create a comic script based on the provided content.
+  
+  Requirements:
+  1. **Character Consistency**: First, define a "Character Visual Bible". Describe the main character(s) in extreme detail (hair, clothes, accessories, face) so that an image generator can draw them identically in every panel.
+  2. **Script**: Create exactly ${targetPanelCount} panels.
+  3. **Visuals**: For each panel, provide a detailed 'imagePrompt' that includes the action AND the setting. Do NOT repeat the character description here (we will inject it programmatically), just refer to "the main character".
+  4. **Camera**: Specify the camera angle (e.g. Close-up, Wide shot).
+  5. **Language**: Traditional Chinese for dialogue and titles. English for image prompts.
+  6. **Style**: ${styleDescription}
+  
+  Content:
+  ${processedText.substring(0, 10000)}
+  `;
+
+  const parts: any[] = [{ text: prompt }];
+  files.forEach(file => {
+    parts.push({
+      inlineData: { mimeType: file.mimeType, data: file.data }
+    });
+  });
+
+  const ai = getAI();
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: { parts },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: comicSchema
+    },
+  });
+
+  if (!response.text) throw new Error("No response from Gemini");
+
+  const data = parseJsonFromResponse(response.text) as ComicData;
+  data.style = style;
+  
+  // Cost Estimate for Script
+  data.costEstimate = estimateCost(prompt.length, response.text.length, 0, 'gemini-2.5-flash-image');
+
+  return data;
+};
+
+// NEW: Batch Generate Images for Comic with Consistency
+export const generateComicImages = async (
+  data: ComicData,
+  imageModel: ImageModelType,
+  customStylePrompt?: string
+): Promise<ComicData> => {
+  
+  let generatedImageCount = 0;
+
+  // Inject the Character Visual Bible into every panel prompt
+  // Process with concurrency to handle 8/16 panels
+  const updatedPanels = await processItemsWithConcurrency(
+    data.panels,
+    3, // 3 at a time
+    async (panel) => {
+      generatedImageCount++;
+      // The generateSectionImage function now supports character injection
+      const imageUrl = await generateSectionImage(
+        panel.imagePrompt,
+        data.style,
+        imageModel,
+        customStylePrompt,
+        data.characterVisualBible // Pass the bible
+      );
+      return { ...panel, imageUrl };
+    }
+  );
+
+  const updatedData = { ...data, panels: updatedPanels };
+  
+  // Update cost estimate to include images
+  if (updatedData.costEstimate) {
+    const additionalCost = estimateCost(0, 0, generatedImageCount, imageModel);
+    updatedData.costEstimate.totalCost += additionalCost.totalCost;
+    updatedData.costEstimate.breakdown.imageCount += generatedImageCount;
+    updatedData.costEstimate.breakdown.imageGeneration += additionalCost.breakdown.imageGeneration;
+    updatedData.costEstimate.breakdown.imageModel = imageModel;
+  } else {
+    updatedData.costEstimate = estimateCost(0, 0, generatedImageCount, imageModel);
+  }
+
+  return updatedData;
 };

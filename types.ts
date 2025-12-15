@@ -37,6 +37,18 @@ export type InfographicAspectRatio = 'vertical' | 'horizontal' | 'square';
 // NEW: Image Model Selection
 export type ImageModelType = 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview';
 
+export interface AICost {
+  totalCost: number;
+  currency: string;
+  breakdown: {
+    textInput: number;
+    textOutput: number;
+    imageGeneration: number;
+    imageCount: number;
+    imageModel: ImageModelType | 'gemini-3-pro-image-preview' | 'gemini-2.5-flash-image';
+  };
+}
+
 export interface InfographicData {
   mainTitle: string;
   subtitle: string;
@@ -49,6 +61,7 @@ export interface InfographicData {
   conclusion: string;
   themeColor: string;
   style: InfographicStyle;
+  costEstimate?: AICost; // NEW
 }
 
 export type SectionType = 'title' | 'subtitle' | 'section' | 'statistic' | 'conclusion';
@@ -98,6 +111,28 @@ export interface PresentationData {
   slides: Slide[];
   themeColor: string;
   style: InfographicStyle;
+  costEstimate?: AICost; // NEW
+}
+
+// --- Comic Mode Types ---
+
+export interface ComicPanel {
+  id: string;
+  panelNumber: number;
+  description: string; // Story description
+  dialogue: string; // Character dialogue or caption
+  cameraDetail: string; // e.g. "Close up", "Wide shot"
+  imagePrompt: string; // The prompt for AI
+  imageUrl?: string;
+}
+
+export interface ComicData {
+  title: string;
+  storySummary: string;
+  characterVisualBible: string; // Description of consistent character looks
+  panels: ComicPanel[];
+  style: InfographicStyle;
+  costEstimate?: AICost; // NEW
 }
 
 // ------------------------------
@@ -107,9 +142,10 @@ export interface HistoryItem {
   timestamp: number;
   title: string;
   style: InfographicStyle;
-  mode: 'layout' | 'image' | 'presentation';
+  mode: 'layout' | 'image' | 'presentation' | 'comic'; // Added 'comic'
   data: InfographicData | null;
   presentationData?: PresentationData | null; // Store presentation data
+  comicData?: ComicData | null; // Store comic data
   fullImageUrl: string | null;
   // Context to restore inputs
   inputText: string;
@@ -122,6 +158,7 @@ export interface HistoryItem {
   imageModel?: ImageModelType; // Added to history
   // Fix: Added targetSlideCount to persist presentation slide count preference
   targetSlideCount?: number; 
+  targetPanelCount?: number; // For comic
 }
 
 export type SocialPlatform = 'instagram' | 'linkedin' | 'twitter' | 'facebook';

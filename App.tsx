@@ -1,9 +1,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { generateInfographic, refineInfographicSection, generateFullInfographicImage, transformInfographic, FileData, generateSocialCaption, generatePresentation, refinePresentationSlide } from './services/geminiService';
-import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem, InfographicSection, SocialPlatform, PresentationData, ImageModelType, Slide, InfographicChart } from './types';
+import { generateInfographic, refineInfographicSection, generateFullInfographicImage, transformInfographic, FileData, generateSocialCaption, generatePresentation, refinePresentationSlide, generateComicScript, generateComicImages } from './services/geminiService';
+import { InfographicData, SectionType, InfographicStyle, BrandConfig, InfographicAspectRatio, HistoryItem, InfographicSection, SocialPlatform, PresentationData, ImageModelType, Slide, InfographicChart, ComicData, AICost } from './types';
 import { InfographicView } from './components/InfographicView';
 import { PresentationView } from './components/PresentationView';
+import { ComicView } from './components/ComicView';
 import { EditModal } from './components/EditModal';
 import { SettingsModal } from './components/SettingsModal';
 import { HistorySidebar } from './components/HistorySidebar';
@@ -11,19 +12,53 @@ import { IconPickerModal } from './components/IconPickerModal';
 import { SocialMediaModal } from './components/SocialMediaModal';
 import { ChartEditModal } from './components/ChartEditModal';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect, Eraser, PlayCircle, Video } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect, Eraser, PlayCircle, Video, BookOpen, Film, LayoutGrid, Info } from 'lucide-react';
 import * as html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { exportToPPTX, exportPresentationToPPTX } from './utils/pptExporter';
 
+// NEW: Cost Display Component
+const CostDisplay: React.FC<{ cost?: AICost }> = ({ cost }) => {
+  if (!cost) return null;
+  return (
+    <div className="group relative inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200 cursor-help">
+      <span>💰 Est. Cost: ${cost.totalCost.toFixed(3)}</span>
+      <Info size={12} className="opacity-50" />
+      
+      {/* Tooltip */}
+      <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl p-4 opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none text-gray-700">
+         <h4 className="font-bold border-b pb-2 mb-2 text-gray-900">Cost Breakdown (USD)</h4>
+         <div className="space-y-1 text-xs">
+           <div className="flex justify-between">
+             <span>Input Text:</span>
+             <span>${cost.breakdown.textInput.toFixed(4)}</span>
+           </div>
+           <div className="flex justify-between">
+             <span>Output Text:</span>
+             <span>${cost.breakdown.textOutput.toFixed(4)}</span>
+           </div>
+           <div className="flex justify-between font-semibold text-green-700">
+             <span>Images ({cost.breakdown.imageCount}):</span>
+             <span>${cost.breakdown.imageGeneration.toFixed(4)}</span>
+           </div>
+           <div className="text-[10px] text-gray-400 mt-2">
+             Model: {cost.breakdown.imageModel.replace('gemini-', '')}
+           </div>
+         </div>
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [inputUrl, setInputUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<InfographicData | null>(null);
-  const [presentationData, setPresentationData] = useState<PresentationData | null>(null); // New state for presentation
+  const [presentationData, setPresentationData] = useState<PresentationData | null>(null);
+  const [comicData, setComicData] = useState<ComicData | null>(null); // NEW: Comic State
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   
   // Settings State
@@ -31,14 +66,15 @@ const App: React.FC = () => {
   const [aspectRatio, setAspectRatio] = useState<InfographicAspectRatio>('vertical');
   const [customStylePrompt, setCustomStylePrompt] = useState('');
   const [customThemeColor, setCustomThemeColor] = useState<string>('');
-  const [mode, setMode] = useState<'layout' | 'image' | 'presentation'>('layout');
+  const [mode, setMode] = useState<'layout' | 'image' | 'presentation' | 'comic'>('layout');
   const [imageModel, setImageModel] = useState<ImageModelType>('gemini-2.5-flash-image');
   const [targetSlideCount, setTargetSlideCount] = useState<number>(10);
+  const [targetPanelCount, setTargetPanelCount] = useState<number>(4); // NEW: Comic panel count
   
   // Modals State
   const [editingSection, setEditingSection] = useState<{type: SectionType, id: string | null, content: any} | null>(null);
   const [editingIconSectionId, setEditingIconSectionId] = useState<string | null>(null);
-  const [editingChart, setEditingChart] = useState<InfographicChart | null>(null); // NEW: Chart Edit State
+  const [editingChart, setEditingChart] = useState<InfographicChart | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
@@ -104,7 +140,6 @@ const App: React.FC = () => {
         ) {
           console.warn("LocalStorage quota exceeded. Trimming oldest history item...");
           if (items.length > 0) {
-            // Remove the oldest item (last one in array since we prepend new ones) and retry
             const trimmed = items.slice(0, -1);
             saveHistorySafe(trimmed);
           } else {
@@ -121,16 +156,18 @@ const App: React.FC = () => {
   const saveToHistory = (
     newData: InfographicData | null, 
     newPresData: PresentationData | null,
-    newImageUrl: string | null
+    newImageUrl: string | null,
+    newComicData: ComicData | null
   ) => {
     const newItem: HistoryItem = {
       id: Date.now().toString(),
       timestamp: Date.now(),
-      title: newData?.mainTitle || newPresData?.mainTitle || "Untitled Project",
+      title: newData?.mainTitle || newPresData?.mainTitle || newComicData?.title || "Untitled Project",
       style: selectedStyle,
       mode: mode,
       data: newData,
       presentationData: newPresData,
+      comicData: newComicData,
       fullImageUrl: newImageUrl,
       inputText,
       inputUrl,
@@ -140,11 +177,11 @@ const App: React.FC = () => {
       customColor: customThemeColor,
       brandConfig,
       imageModel,
-      targetSlideCount
+      targetSlideCount,
+      targetPanelCount
     };
 
     setHistory(prev => {
-      // Limit to 5 items to prevent rapid quota usage with large images
       const newHistory = [newItem, ...prev].slice(0, 5);
       return newHistory;
     });
@@ -158,8 +195,6 @@ const App: React.FC = () => {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      
-      // 1. Text Extraction (Client-side) for Word/Excel/Txt
       if (
         file.name.endsWith('.docx') || 
         file.name.endsWith('.xlsx') || 
@@ -190,7 +225,6 @@ const App: React.FC = () => {
           alert(`無法讀取檔案 ${file.name}`);
         }
       } 
-      // 2. Binary Attachment (PDF) for Gemini Multimodal
       else if (file.type === 'application/pdf') {
         const reader = new FileReader();
         await new Promise<void>((resolve) => {
@@ -227,6 +261,7 @@ const App: React.FC = () => {
     setFullImageUrl(null);
     setData(null);
     setPresentationData(null);
+    setComicData(null);
 
     const binaryFiles = attachedFiles.map(f => f.data);
 
@@ -243,10 +278,9 @@ const App: React.FC = () => {
         );
         if (imageUrl) {
           setFullImageUrl(imageUrl);
-          saveToHistory(null, null, imageUrl);
+          saveToHistory(null, null, imageUrl, null);
         }
       } else if (mode === 'presentation') {
-        // Generate Presentation
         const result = await generatePresentation(
           inputText, 
           selectedStyle, 
@@ -258,7 +292,21 @@ const App: React.FC = () => {
           targetSlideCount
         );
         setPresentationData(result);
-        saveToHistory(null, result, null);
+        saveToHistory(null, result, null, null);
+      } else if (mode === 'comic') {
+        // 1. Generate Script
+        const scriptData = await generateComicScript(
+           inputText, 
+           selectedStyle,
+           binaryFiles,
+           inputUrl, // Pass URL explicitly
+           customStylePrompt,
+           targetPanelCount
+        );
+        // 2. Generate Images with Consistency
+        const finalComic = await generateComicImages(scriptData, imageModel, customStylePrompt);
+        setComicData(finalComic);
+        saveToHistory(null, null, null, finalComic);
       } else {
         // Standard Layout
         const result = await generateInfographic(
@@ -272,7 +320,7 @@ const App: React.FC = () => {
           imageModel
         );
         setData(result);
-        saveToHistory(result, null, null);
+        saveToHistory(result, null, null, null);
       }
     } catch (error) {
       console.error(error);
@@ -285,10 +333,9 @@ const App: React.FC = () => {
   const handleEditConfirm = async (instruction: string) => {
     if (!editingSection) return;
     
-    // IMAGE Refinement Mode
     if (mode === 'image' && fullImageUrl) {
       setIsLoading(true);
-      setEditingSection(null); // Close modal immediately
+      setEditingSection(null);
       try {
         const newUrl = await generateFullInfographicImage(
           inputText,
@@ -298,11 +345,11 @@ const App: React.FC = () => {
           brandConfig,
           customStylePrompt,
           aspectRatio,
-          instruction // Pass refinement instruction
+          instruction
         );
         if (newUrl) {
           setFullImageUrl(newUrl);
-          saveToHistory(null, null, newUrl);
+          saveToHistory(null, null, newUrl, null);
         }
       } catch (e) {
         alert("修改失敗，請重試。");
@@ -312,9 +359,7 @@ const App: React.FC = () => {
       return;
     }
 
-    // PRESENTATION Refinement Mode
     if (mode === 'presentation' && presentationData) {
-      // Find the slide
       const slide = presentationData.slides.find(s => s.id === editingSection.id);
       if (slide) {
         setIsLoading(true);
@@ -331,7 +376,7 @@ const App: React.FC = () => {
           const newSlides = presentationData.slides.map(s => s.id === slide.id ? updatedSlide : s);
           const newData = { ...presentationData, slides: newSlides };
           setPresentationData(newData);
-          saveToHistory(null, newData, null);
+          saveToHistory(null, newData, null, null);
         } catch (error: any) {
           console.error(error);
           alert(`修改失敗: ${error.message || 'Unknown error'}`);
@@ -342,7 +387,6 @@ const App: React.FC = () => {
       return;
     }
 
-    // STANDARD Layout Refinement
     if (data) {
       setIsLoading(true);
       setEditingSection(null);
@@ -354,7 +398,7 @@ const App: React.FC = () => {
           instruction
         );
         setData(newData);
-        saveToHistory(newData, null, null);
+        saveToHistory(newData, null, null, null);
       } catch (error) {
         console.error(error);
         alert("修改失敗，請稍後再試。");
@@ -372,10 +416,9 @@ const App: React.FC = () => {
     });
   };
 
-  // Presentation Refinement Trigger
   const handlePresentationRefine = (slideId: string, currentContent: Slide) => {
     setEditingSection({
-      type: 'section', // Reuse section type for simplicity
+      type: 'section', 
       id: slideId,
       content: currentContent
     });
@@ -391,7 +434,7 @@ const App: React.FC = () => {
     try {
       const newData = await transformInfographic(data, instruction);
       setData(newData);
-      saveToHistory(newData, null, null);
+      saveToHistory(newData, null, null, null);
     } catch (e) {
       alert("轉換失敗");
     } finally {
@@ -418,24 +461,21 @@ const App: React.FC = () => {
     }
   };
 
-  // Chart Editing Handlers
   const handleChartEdit = (chart: InfographicChart) => {
     setEditingChart(chart);
   };
 
   const handleChartSave = (updatedChart: InfographicChart) => {
     if (!data) return;
-    // Need to handle if charts array doesn't exist yet (though unlikely if clicking edit)
     const currentCharts = data.charts || [];
     const newCharts = currentCharts.map(c => c.id === updatedChart.id ? updatedChart : c);
     
     const newData = { ...data, charts: newCharts };
     setData(newData);
-    saveToHistory(newData, null, null); // Auto save
+    saveToHistory(newData, null, null, null);
     setEditingChart(null);
   };
 
-  // Slide Reorder Handler
   const handleSlideReorder = (newSlides: Slide[]) => {
     if (presentationData) {
       const newData = { ...presentationData, slides: newSlides };
@@ -443,11 +483,47 @@ const App: React.FC = () => {
     }
   };
   
-  // Standard Section Reorder Handler
   const handleSectionReorder = (newSections: InfographicSection[]) => {
     if (data) {
        setData({ ...data, sections: newSections });
     }
+  };
+
+  // NEW: Convert Comic to Presentation
+  const handleComicToPresentation = () => {
+    if (!comicData) return;
+    
+    const slides: Slide[] = comicData.panels.map((panel, idx) => ({
+      id: panel.id,
+      layout: 'text_and_image',
+      title: `Panel ${idx + 1}: ${comicData.title}`,
+      content: `${panel.dialogue}\n\n[Action]: ${panel.description}`,
+      speakerNotes: `In this panel, ${panel.description}. The camera is set to ${panel.cameraDetail}.`,
+      imageUrl: panel.imageUrl,
+      imagePrompt: panel.imagePrompt
+    }));
+
+    // Add cover slide
+    slides.unshift({
+      id: 'cover',
+      layout: 'title_cover',
+      title: comicData.title,
+      content: comicData.storySummary,
+      speakerNotes: `Welcome to the story of ${comicData.title}.`,
+      imagePrompt: ''
+    });
+
+    const presData: PresentationData = {
+      mainTitle: comicData.title,
+      subtitle: comicData.storySummary,
+      slides: slides,
+      themeColor: '#000000',
+      style: comicData.style
+    };
+
+    setPresentationData(presData);
+    setMode('presentation');
+    saveToHistory(null, presData, null, comicData); // Save both
   };
 
   const getTimestampFilename = (prefix: string) => {
@@ -504,7 +580,7 @@ const App: React.FC = () => {
   };
 
   const handleExportProject = () => {
-    if (!data && !presentationData && !fullImageUrl) return;
+    if (!data && !presentationData && !fullImageUrl && !comicData) return;
     const projectData = {
       version: 1,
       timestamp: Date.now(),
@@ -512,10 +588,12 @@ const App: React.FC = () => {
       style: selectedStyle,
       data,
       presentationData,
+      comicData,
       fullImageUrl,
       brandConfig,
       aspectRatio,
-      targetSlideCount
+      targetSlideCount,
+      targetPanelCount
     };
     const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -539,10 +617,12 @@ const App: React.FC = () => {
         if (json.style) setSelectedStyle(json.style);
         if (json.data) setData(json.data);
         if (json.presentationData) setPresentationData(json.presentationData);
+        if (json.comicData) setComicData(json.comicData);
         if (json.fullImageUrl) setFullImageUrl(json.fullImageUrl);
         if (json.brandConfig) setBrandConfig(json.brandConfig);
         if (json.aspectRatio) setAspectRatio(json.aspectRatio);
         if (json.targetSlideCount) setTargetSlideCount(json.targetSlideCount);
+        if (json.targetPanelCount) setTargetPanelCount(json.targetPanelCount);
         alert("專案載入成功！");
       } catch (err) {
         alert("無法讀取專案檔");
@@ -561,11 +641,13 @@ const App: React.FC = () => {
     setCustomStylePrompt(item.customStylePrompt);
     setData(item.data);
     setPresentationData(item.presentationData || null);
+    setComicData(item.comicData || null);
     setFullImageUrl(item.fullImageUrl);
     if (item.brandConfig) setBrandConfig(item.brandConfig);
     if (item.customColor) setCustomThemeColor(item.customColor);
     if (item.imageModel) setImageModel(item.imageModel);
     if (item.targetSlideCount) setTargetSlideCount(item.targetSlideCount);
+    if (item.targetPanelCount) setTargetPanelCount(item.targetPanelCount);
     setIsHistoryOpen(false);
   };
 
@@ -582,6 +664,14 @@ const App: React.FC = () => {
               <span className="font-bold text-xl tracking-tight text-gray-900 hidden sm:block">InfographAI</span>
             </div>
             <div className="flex items-center gap-3">
+              
+              {/* COST DISPLAY */}
+              {(data?.costEstimate || presentationData?.costEstimate || comicData?.costEstimate) && (
+                <div className="mr-2">
+                  <CostDisplay cost={data?.costEstimate || presentationData?.costEstimate || comicData?.costEstimate} />
+                </div>
+              )}
+
               {/* Magic Tools Menu */}
               {(data && mode === 'layout') && (
                  <div className="relative group">
@@ -632,7 +722,7 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              {(data || presentationData || fullImageUrl) && (
+              {(data || presentationData || fullImageUrl || comicData) && (
                 <div className="flex gap-2 ml-2">
                    {mode === 'layout' && (
                      <>
@@ -651,7 +741,7 @@ const App: React.FC = () => {
                    )}
                    <Button 
                       variant="primary" 
-                      onClick={() => { setData(null); setPresentationData(null); setFullImageUrl(null); }}
+                      onClick={() => { setData(null); setPresentationData(null); setFullImageUrl(null); setComicData(null); }}
                       className="bg-indigo-600"
                     >
                       <Pencil size={16} /> 修改並重新產生
@@ -665,37 +755,43 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {!data && !fullImageUrl && !presentationData ? (
+        {!data && !fullImageUrl && !presentationData && !comicData ? (
           <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="text-center space-y-4">
               <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight">
                 AI 資訊圖表產生器
               </h1>
               <p className="text-xl text-gray-500 max-w-2xl mx-auto">
-                將繁雜的文件與數據，瞬間轉換為精美的視覺化圖表、海報或專業簡報。
+                將繁雜的文件與數據，瞬間轉換為精美的視覺化圖表、海報、專業簡報或連續漫畫。
               </p>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 space-y-6">
               {/* Mode Selection */}
-              <div className="flex bg-gray-100 p-1 rounded-xl">
+              <div className="flex bg-gray-100 p-1 rounded-xl overflow-x-auto">
                 <button 
                   onClick={() => setMode('layout')}
-                  className={`flex-1 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'layout' ? 'bg-white shadow-md text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'layout' ? 'bg-white shadow-md text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                  <LayoutTemplate size={18} /> 標準排版 (Standard)
+                  <LayoutTemplate size={18} /> 標準排版
                 </button>
                 <button 
                   onClick={() => setMode('image')}
-                  className={`flex-1 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'image' ? 'bg-white shadow-md text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'image' ? 'bg-white shadow-md text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                  <ImageIcon size={18} /> AI 全圖繪製 (Poster)
+                  <ImageIcon size={18} /> 全圖海報
                 </button>
                 <button 
                   onClick={() => setMode('presentation')}
-                  className={`flex-1 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'presentation' ? 'bg-white shadow-md text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'presentation' ? 'bg-white shadow-md text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                  <Presentation size={18} /> AI 簡報生成 (Beta)
+                  <Presentation size={18} /> AI 簡報
+                </button>
+                <button 
+                  onClick={() => setMode('comic')}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'comic' ? 'bg-white shadow-md text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <BookOpen size={18} /> 連續漫畫
                 </button>
               </div>
 
@@ -715,7 +811,7 @@ const App: React.FC = () => {
 
               <textarea
                 className="w-full h-40 p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none text-gray-700 transition-all text-lg"
-                placeholder={mode === 'image' ? "描述您想要的海報內容、風格與重點..." : "在此貼上文章、數據或筆記..."}
+                placeholder={mode === 'image' ? "描述您想要的海報內容、風格與重點..." : mode === 'comic' ? "描述漫畫劇情、角色與場景 (e.g. 辦公室裡的工程師遇到Bug...)" : "在此貼上文章、數據或筆記..."}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
               />
@@ -788,7 +884,7 @@ const App: React.FC = () => {
                         onChange={(e) => setCustomStylePrompt(e.target.value)}
                       />
                       <div className="flex flex-wrap gap-2">
-                        {['Cyberpunk', 'Pixel Art', 'Ukiyo-e', 'Low Poly', 'Bauhaus', 'Vaporwave'].map(style => (
+                        {['Cyberpunk', 'Pixel Art', 'Ukiyo-e', 'Low Poly', 'Manga', 'Studio Ghibli'].map(style => (
                           <button 
                             key={style}
                             onClick={() => setCustomStylePrompt(style)}
@@ -824,6 +920,17 @@ const App: React.FC = () => {
                           {targetSlideCount > 20 && <span className="text-orange-500">頁數較多可能需較長生成時間</span>}
                           <span>詳盡 (30)</span>
                         </p>
+                      </div>
+                   ) : mode === 'comic' ? (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
+                           <div className="flex items-center gap-2"><LayoutGrid size={16} /> 漫畫格數 (Panels)</div>
+                        </label>
+                        <div className="flex gap-2">
+                           <button onClick={() => setTargetPanelCount(4)} className={`flex-1 py-2 border rounded-lg ${targetPanelCount === 4 ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'hover:bg-gray-50'}`}>4格</button>
+                           <button onClick={() => setTargetPanelCount(8)} className={`flex-1 py-2 border rounded-lg ${targetPanelCount === 8 ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'hover:bg-gray-50'}`}>8格</button>
+                           <button onClick={() => setTargetPanelCount(16)} className={`flex-1 py-2 border rounded-lg ${targetPanelCount === 16 ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'hover:bg-gray-50'}`}>16格</button>
+                        </div>
                       </div>
                    ) : (
                       <div>
@@ -913,7 +1020,7 @@ const App: React.FC = () => {
         ) : (
           <div className="animate-in fade-in zoom-in duration-300">
             {/* Toolbar for Motion Toggle */}
-            {mode !== 'image' && (
+            {mode === 'layout' && (
               <div className="mb-4 flex justify-end items-center gap-4">
                  <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-200">
                     <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
@@ -958,6 +1065,11 @@ const App: React.FC = () => {
                   data={presentationData} 
                   onRefine={handlePresentationRefine}
                   onReorder={handleSlideReorder}
+               />
+            ) : mode === 'comic' && comicData ? (
+               <ComicView 
+                  data={comicData}
+                  onConvertToSlides={handleComicToPresentation}
                />
             ) : data ? (
               <div ref={infographicRef}>
