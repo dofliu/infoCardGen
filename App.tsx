@@ -12,12 +12,41 @@ import { IconPickerModal } from './components/IconPickerModal';
 import { SocialMediaModal } from './components/SocialMediaModal';
 import { ChartEditModal } from './components/ChartEditModal';
 import { Button } from './components/Button';
-import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect, Eraser, PlayCircle, Video, BookOpen, Film, LayoutGrid, Info } from 'lucide-react';
+import { RefreshCw, Upload, Sparkles, Palette, FileText, Download, Image as ImageIcon, LayoutTemplate, XCircle, FileType, Trash2, Link as LinkIcon, UserCircle, Pencil, RectangleVertical, RectangleHorizontal, Square, History, Save, FolderOpen, Presentation, Wand2, ChevronDown, Languages, TextSelect, Eraser, PlayCircle, Video, BookOpen, Film, LayoutGrid, Info, Code, Terminal, X } from 'lucide-react';
 import * as html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { exportToPPTX, exportPresentationToPPTX } from './utils/pptExporter';
+
+// NEW: Prompt Inspector Modal Component
+const PromptModal: React.FC<{ isOpen: boolean; onClose: () => void; prompt?: string }> = ({ isOpen, onClose, prompt }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+      <div className="bg-gray-900 text-green-400 rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-green-500/30 flex flex-col max-h-[85vh] animate-in fade-in zoom-in duration-300">
+        <div className="p-4 border-b border-green-500/20 flex justify-between items-center bg-black/40">
+           <div className="flex items-center gap-2">
+             <Terminal size={20} />
+             <h3 className="font-mono font-bold tracking-tight">AI PROMPT INSPECTOR</h3>
+           </div>
+           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+             <X size={20} />
+           </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 font-mono text-sm leading-relaxed scrollbar-thin scrollbar-thumb-green-900">
+           <div className="mb-4 text-gray-500">// This is the exact prompt instruction sent to Gemini:</div>
+           <pre className="whitespace-pre-wrap break-words opacity-90">{prompt || "No prompt data available."}</pre>
+        </div>
+        <div className="p-3 border-t border-green-500/20 bg-black/20 flex justify-end">
+           <Button variant="outline" onClick={onClose} className="text-xs border-green-500/50 text-green-400 hover:bg-green-500/10">
+             Close Console
+           </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // NEW: Cost Display Component
 const CostDisplay: React.FC<{ cost?: AICost }> = ({ cost }) => {
@@ -60,6 +89,7 @@ const App: React.FC = () => {
   const [presentationData, setPresentationData] = useState<PresentationData | null>(null);
   const [comicData, setComicData] = useState<ComicData | null>(null); // NEW: Comic State
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
+  const [fullImagePrompt, setFullImagePrompt] = useState<string | null>(null); // NEW
   
   // Settings State
   const [selectedStyle, setSelectedStyle] = useState<InfographicStyle>('professional');
@@ -78,6 +108,7 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
   
   // Personal Branding State
   const [brandConfig, setBrandConfig] = useState<BrandConfig>(() => {
@@ -259,6 +290,7 @@ const App: React.FC = () => {
     if ((!inputText && attachedFiles.length === 0 && !inputUrl) || isLoading) return;
     setIsLoading(true);
     setFullImageUrl(null);
+    setFullImagePrompt(null);
     setData(null);
     setPresentationData(null);
     setComicData(null);
@@ -267,7 +299,7 @@ const App: React.FC = () => {
 
     try {
       if (mode === 'image') {
-        const imageUrl = await generateFullInfographicImage(
+        const result = await generateFullInfographicImage(
           inputText, 
           selectedStyle, 
           binaryFiles, 
@@ -276,9 +308,10 @@ const App: React.FC = () => {
           customStylePrompt,
           aspectRatio
         );
-        if (imageUrl) {
-          setFullImageUrl(imageUrl);
-          saveToHistory(null, null, imageUrl, null);
+        if (result.imageUrl) {
+          setFullImageUrl(result.imageUrl);
+          setFullImagePrompt(result.prompt);
+          saveToHistory(null, null, result.imageUrl, null);
         }
       } else if (mode === 'presentation') {
         const result = await generatePresentation(
@@ -337,7 +370,7 @@ const App: React.FC = () => {
       setIsLoading(true);
       setEditingSection(null);
       try {
-        const newUrl = await generateFullInfographicImage(
+        const result = await generateFullInfographicImage(
           inputText,
           selectedStyle,
           attachedFiles.map(f => f.data),
@@ -347,9 +380,10 @@ const App: React.FC = () => {
           aspectRatio,
           instruction
         );
-        if (newUrl) {
-          setFullImageUrl(newUrl);
-          saveToHistory(null, null, newUrl, null);
+        if (result.imageUrl) {
+          setFullImageUrl(result.imageUrl);
+          setFullImagePrompt(result.prompt);
+          saveToHistory(null, null, result.imageUrl, null);
         }
       } catch (e) {
         alert("修改失敗，請重試。");
@@ -665,10 +699,19 @@ const App: React.FC = () => {
             </div>
             <div className="flex items-center gap-3">
               
-              {/* COST DISPLAY */}
-              {(data?.costEstimate || presentationData?.costEstimate || comicData?.costEstimate) && (
-                <div className="mr-2">
+              {/* COST & PROMPT DISPLAY */}
+              {(data || presentationData || comicData || fullImageUrl) && (
+                <div className="flex items-center gap-2 mr-2">
                   <CostDisplay cost={data?.costEstimate || presentationData?.costEstimate || comicData?.costEstimate} />
+                  
+                  {/* PROMPT BUTTON */}
+                  <button 
+                    onClick={() => setIsPromptModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-full text-xs font-bold border border-gray-200 transition-colors"
+                  >
+                    <Code size={12} />
+                    <span>Prompt</span>
+                  </button>
                 </div>
               )}
 
@@ -741,7 +784,7 @@ const App: React.FC = () => {
                    )}
                    <Button 
                       variant="primary" 
-                      onClick={() => { setData(null); setPresentationData(null); setFullImageUrl(null); setComicData(null); }}
+                      onClick={() => { setData(null); setPresentationData(null); setFullImageUrl(null); setComicData(null); setFullImagePrompt(null); }}
                       className="bg-indigo-600"
                     >
                       <Pencil size={16} /> 修改並重新產生
@@ -1131,6 +1174,12 @@ const App: React.FC = () => {
         onClose={() => setEditingChart(null)}
         chart={editingChart}
         onSave={handleChartSave}
+      />
+
+      <PromptModal 
+        isOpen={isPromptModalOpen}
+        onClose={() => setIsPromptModalOpen(false)}
+        prompt={data?.promptUsed || presentationData?.promptUsed || comicData?.promptUsed || fullImagePrompt || undefined}
       />
 
     </div>

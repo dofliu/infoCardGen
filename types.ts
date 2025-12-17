@@ -61,7 +61,8 @@ export interface InfographicData {
   conclusion: string;
   themeColor: string;
   style: InfographicStyle;
-  costEstimate?: AICost; // NEW
+  costEstimate?: AICost;
+  promptUsed?: string; // NEW: Capture the final prompt string
 }
 
 export type SectionType = 'title' | 'subtitle' | 'section' | 'statistic' | 'conclusion';
@@ -111,7 +112,8 @@ export interface PresentationData {
   slides: Slide[];
   themeColor: string;
   style: InfographicStyle;
-  costEstimate?: AICost; // NEW
+  costEstimate?: AICost;
+  promptUsed?: string; // NEW
 }
 
 // --- Comic Mode Types ---
@@ -132,7 +134,8 @@ export interface ComicData {
   characterVisualBible: string; // Description of consistent character looks
   panels: ComicPanel[];
   style: InfographicStyle;
-  costEstimate?: AICost; // NEW
+  costEstimate?: AICost;
+  promptUsed?: string; // NEW
 }
 
 // ------------------------------

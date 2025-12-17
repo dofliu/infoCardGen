@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { InfographicData, SectionType, InfographicStyle, InfographicSection, BrandConfig, InfographicAspectRatio, SocialPlatform, PresentationData, FileData, ImageModelType, Slide, ComicData, ComicPanel } from "../types";
 import { estimateCost } from "../utils/costCalculator";
 
@@ -9,7 +9,8 @@ const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 // CONSTANT: User-defined high quality text instruction
 const HIGH_QUALITY_TEXT_PROMPT = "整張圖片都是4K高解析畫質、讓圖片可以放大400倍、請採用正確的繁體中文顯示、文字線條清楚、不模糊！";
 
-const infographicSchema: Schema = {
+// Schema for Infographic Data using @google/genai Type enum
+const infographicSchema = {
   type: Type.OBJECT,
   properties: {
     mainTitle: { type: Type.STRING, description: "A catchy, short headline for the infographic. MUST NOT BE EMPTY." },
@@ -90,7 +91,8 @@ const infographicSchema: Schema = {
   required: ["mainTitle", "subtitle", "layout", "sections", "statistics", "conclusion", "themeColor"]
 };
 
-const presentationSchema: Schema = {
+// Schema for Presentation Data
+const presentationSchema = {
   type: Type.OBJECT,
   properties: {
     mainTitle: { type: Type.STRING },
@@ -121,7 +123,8 @@ const presentationSchema: Schema = {
   required: ["mainTitle", "subtitle", "slides", "themeColor"]
 };
 
-const comicSchema: Schema = {
+// Schema for Comic Data
+const comicSchema = {
   type: Type.OBJECT,
   properties: {
     title: { type: Type.STRING },
@@ -183,8 +186,9 @@ export const summarizeUrlContent = async (url: string): Promise<string> => {
 
   try {
     const ai = getAI();
+    // Use gemini-3-flash-preview for summarization tasks
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -210,7 +214,6 @@ const retryOperation = async <T>(
     return await operation();
   } catch (error) {
     if (retries <= 0) throw error;
-    // console.warn(`Operation failed, retrying in ${delay}ms... (${retries} retries left)`);
     await wait(delay);
     return retryOperation(operation, retries - 1, delay * 2);
   }
@@ -232,7 +235,6 @@ const processItemsWithConcurrency = async <T, R>(
   for (const chunk of chunks) {
     const chunkResults = await Promise.all(chunk.map(processor));
     results.push(...chunkResults);
-    // Optional small delay between batches to be nice to the API
     if (chunks.indexOf(chunk) < chunks.length - 1) {
       await wait(500); 
     }
@@ -244,9 +246,9 @@ const processItemsWithConcurrency = async <T, R>(
 const generateSectionImage = async (
   prompt: string, 
   style: InfographicStyle, 
-  modelName: ImageModelType = 'gemini-2.5-flash-image', // Default to basic
+  modelName: ImageModelType = 'gemini-2.5-flash-image',
   customStylePrompt?: string,
-  characterDescription?: string // NEW: for consistent characters
+  characterDescription?: string 
 ): Promise<string | undefined> => {
   const stylePrompts = {
     professional: "flat vector illustration, corporate memphis style, clean, blue and teal tones, white background, professional business art, minimalist details, high quality",
@@ -258,36 +260,20 @@ const generateSectionImage = async (
   };
 
   const isProModel = modelName === 'gemini-3-pro-image-preview';
-  
-  // If it's the Pro model, we inject the high quality text instruction and allow text (remove "No text in image")
-  // If it's the Flash model, we strictly avoid text because it's bad at it.
-  const textInstruction = isProModel 
-    ? `${HIGH_QUALITY_TEXT_PROMPT}` 
-    : "No text in image.";
-
-  // Character Consistency Injection
+  const textInstruction = isProModel ? `${HIGH_QUALITY_TEXT_PROMPT}` : "No text in image.";
   const characterPrefix = characterDescription ? `[Visual Bible: ${characterDescription}] ` : "";
-
   const fullPrompt = `${characterPrefix}${prompt}. Style: ${stylePrompts[style]}. ${textInstruction}`;
 
   const config: any = {};
-  
-  // Apply specific configs for the advanced model to ensure good aspect ratio
   if (isProModel) {
-    config.imageConfig = {
-      aspectRatio: '16:9',
-      imageSize: '1K'
-    };
+    config.imageConfig = { aspectRatio: '16:9', imageSize: '1K' };
   }
 
-  // Wrap API call in retry logic
   return retryOperation(async () => {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: {
-        parts: [{ text: fullPrompt }]
-      },
+      contents: { parts: [{ text: fullPrompt }] },
       config: config
     });
     
@@ -305,7 +291,7 @@ const generateSectionImage = async (
 
 export { FileData };
 
-// NEW: Generate a full single-page infographic image
+// Generate a full single-page infographic image
 export const generateFullInfographicImage = async (
   text: string, 
   style: InfographicStyle,
@@ -314,12 +300,10 @@ export const generateFullInfographicImage = async (
   brandConfig?: BrandConfig,
   customStylePrompt?: string,
   aspectRatio: InfographicAspectRatio = 'vertical',
-  refinementInstruction?: string // NEW: Instruction to fix the image
-): Promise<string | undefined> => {
+  refinementInstruction?: string
+): Promise<{ imageUrl: string | undefined, prompt: string }> => {
   
   let processedText = text;
-  
-  // If URL is provided, summarize it first and append to text
   if (url) {
     const urlSummary = await summarizeUrlContent(url);
     processedText += `\n\n[External URL Content Summary (${url})]:\n${urlSummary}`;
@@ -335,79 +319,48 @@ export const generateFullInfographicImage = async (
     `;
   }
 
-  const styleDescription = style === 'custom' && customStylePrompt 
-    ? `Custom Style: "${customStylePrompt}"` 
-    : `Style: ${style}`;
-
-  // Map InfographicAspectRatio to API values and descriptive text
+  const styleDescription = style === 'custom' && customStylePrompt ? `Custom Style: "${customStylePrompt}"` : `Style: ${style}`;
   const ratioConfig = {
     'vertical': { apiValue: '3:4', desc: 'Vertical Poster' },
     'horizontal': { apiValue: '16:9', desc: 'Horizontal Presentation Slide' },
     'square': { apiValue: '1:1', desc: 'Square Social Media Post' }
   };
-  
   const currentRatio = ratioConfig[aspectRatio];
 
   let correctionHeader = "";
   if (refinementInstruction) {
-    correctionHeader = `
-    *** CRITICAL CORRECTION INSTRUCTION ***
-    The user is asking to RE-GENERATE this image with the following specific correction. 
-    You MUST prioritize this instruction over original content if they conflict:
-    "${refinementInstruction}"
-    *****************************************
-    `;
+    correctionHeader = `*** CRITICAL CORRECTION INSTRUCTION *** ${refinementInstruction} *****************************************`;
   }
 
   const promptText = `Create a high-quality, single-page ${currentRatio.desc} infographic in Traditional Chinese (Taiwan) based on the provided content.
-  
   ${correctionHeader}
   ${styleDescription}
   ${brandingInstructions}
-  
   Requirements:
-  - The image should look like a professional ${currentRatio.desc}.
-  - Aspect Ratio Target: ${currentRatio.apiValue}.
-  - It must contain the Main Title and Subtitles in Traditional Chinese.
-  - Include data visualization, icons, or illustrations relevant to the content.
-  - The layout should be organized, easy to read, and visually striking.
-  - Use the "Style" specified above.
-  - **${HIGH_QUALITY_TEXT_PROMPT}**
-  
-  Content Notes:
-  ${processedText.substring(0, 6000)}`;
+  - Aspects Ratio Target: ${currentRatio.apiValue}.
+  - High resolution, clear text in Traditional Chinese.
+  - ${HIGH_QUALITY_TEXT_PROMPT}
+  Content Notes: ${processedText.substring(0, 6000)}`;
 
   const parts: any[] = [{ text: promptText }];
-  
-  files.forEach(file => {
-    parts.push({
-      inlineData: {
-        mimeType: file.mimeType,
-        data: file.data
-      }
-    });
-  });
+  files.forEach(file => { parts.push({ inlineData: { mimeType: file.mimeType, data: file.data } }); });
 
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: { parts },
-      config: {
-        imageConfig: {
-          aspectRatio: currentRatio.apiValue, 
-          imageSize: '2K' 
-        }
-      }
+      config: { imageConfig: { aspectRatio: currentRatio.apiValue, imageSize: '2K' } }
     });
 
+    let imageUrl: string | undefined = undefined;
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
+        imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+        break;
       }
     }
-    return undefined;
-
+    return { imageUrl, prompt: promptText };
   } catch (e) {
     console.error("Full infographic generation failed", e);
     throw e; 
@@ -424,67 +377,20 @@ export const generateInfographic = async (
   aspectRatio: InfographicAspectRatio = 'vertical',
   imageModel: ImageModelType = 'gemini-2.5-flash-image'
 ): Promise<InfographicData> => {
-  const styleInstructions = {
-    professional: "Use a clean, corporate tone. Suggest deep blues, teals, or grays for hex color. Title must be impactful.",
-    comic: "Use a fun, energetic tone with punchy exclamations! Suggest bright pop-art colors (yellow, red, cyan) for hex color.",
-    digital: "Use a tech-focused, futuristic tone. Suggest neon greens, purples, or dark mode hex colors.",
-    watercolor: "Use a soft, artistic, and flowing tone. Suggest pastel colors for hex color.",
-    minimalist: "Use extremely concise, Zen-like language. Suggest monochromatic or earth tone hex colors.",
-    custom: `Adopt a visual and writing style based on this description: "${customStylePrompt}". Choose a theme color that matches this style.`
-  };
-
-  const finalToneInstruction = toneOfVoice 
-    ? `Adopt the following specific tone/persona: "${toneOfVoice}".` 
-    : styleInstructions[style];
-
+  const finalToneInstruction = toneOfVoice ? `Adopt the following specific tone/persona: "${toneOfVoice}".` : "Adopt a visual style appropriate for " + style;
   let processedText = text;
-
-  // If URL is provided, summarize it first and append to text
   if (url) {
     const urlSummary = await summarizeUrlContent(url);
     processedText += `\n\n[External URL Content Summary (${url})]:\n${urlSummary}`;
   }
 
-  let layoutHint = "";
-  if (aspectRatio === 'horizontal') {
-    layoutHint = "The user wants a Horizontal (Landscape) layout. Structure content to fit a wide format, potentially using more columns (e.g. 3 columns) for sections.";
-  } else if (aspectRatio === 'square') {
-    layoutHint = "The user wants a Square layout. Structure content to be compact and centered.";
-  }
-
-  const textPrompt = `Analyze the following text (and attached files if any) and transform it into a structured infographic content plan. 
-  
-  **Requirements:**
-  1. **Language:** Output MUST be in **Traditional Chinese (Taiwan)**.
-  2. **Tone & Style:** The visual and writing style should be **"${style}"**. ${finalToneInstruction}
-  3. **Structure Analysis:**
-     - If content involves a direct comparison (Pros vs Cons, Before vs After), use 'comparison'.
-     - If content implies a timeline/history, use 'timeline'.
-     - If content implies steps/methods, use 'process'.
-     - Otherwise, use 'grid'.
-     - ${layoutHint}
-  4. **Charts:** Identify any numerical data suitable for visualization (e.g. market share, growth stats). Create 1-2 charts if applicable.
-  5. **Visuals:** Identify key sections that need an illustration and provide a creative English 'imagePrompt' for them.
-  6. **Comparison:** If layout is 'comparison', provide 'comparisonLabels' (e.g. ['Pros', 'Cons']) and split 'sections' evenly (first half Left, second half Right).
-  
-  Input Text Note:
-  ${processedText.substring(0, 6000)}`;
-
+  const textPrompt = `Analyze text and files to create an infographic content plan. Language: Traditional Chinese (Taiwan). Style: ${style}. ${finalToneInstruction} Content: ${processedText.substring(0, 6000)}`;
   const parts: any[] = [{ text: textPrompt }];
-  
-  files.forEach(file => {
-    parts.push({
-      inlineData: {
-        mimeType: file.mimeType,
-        data: file.data
-      }
-    });
-  });
+  files.forEach(file => { parts.push({ inlineData: { mimeType: file.mimeType, data: file.data } }); });
 
-  // 1. Generate Text Structure
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     contents: { parts },
     config: {
       responseMimeType: "application/json",
@@ -493,41 +399,26 @@ export const generateInfographic = async (
     },
   });
 
-  if (!response.text) {
-    throw new Error("No response from Gemini");
-  }
-
+  if (!response.text) throw new Error("No response from Gemini");
   const data = parseJsonFromResponse(response.text) as InfographicData;
   data.style = style;
-  data.aspectRatio = aspectRatio; // Store the requested ratio in data
+  data.aspectRatio = aspectRatio;
+  data.promptUsed = textPrompt;
 
-  // 2. Generate Images in Batches (Concurrency Limited)
   let generatedImageCount = 0;
-  data.sections = await processItemsWithConcurrency(
-    data.sections,
-    3, // Process 3 images at a time
-    async (section) => {
-      if (section.imagePrompt) {
-        generatedImageCount++;
-        const imageUrl = await generateSectionImage(section.imagePrompt, style, imageModel, customStylePrompt);
-        return { ...section, imageUrl };
-      }
-      return section;
+  data.sections = await processItemsWithConcurrency(data.sections, 3, async (section) => {
+    if (section.imagePrompt) {
+      generatedImageCount++;
+      const imageUrl = await generateSectionImage(section.imagePrompt, style, imageModel, customStylePrompt);
+      return { ...section, imageUrl };
     }
-  );
+    return section;
+  });
 
-  // COST ESTIMATION
-  data.costEstimate = estimateCost(
-    textPrompt.length, 
-    response.text.length, 
-    generatedImageCount,
-    imageModel
-  );
-
+  data.costEstimate = estimateCost(textPrompt.length, response.text.length, generatedImageCount, imageModel);
   return data;
 };
 
-// NEW: Generate Presentation Data
 export const generatePresentation = async (
   text: string, 
   style: InfographicStyle,
@@ -535,58 +426,22 @@ export const generatePresentation = async (
   url?: string,
   toneOfVoice?: string, 
   customStylePrompt?: string,
-  imageModel: ImageModelType = 'gemini-3-pro-image-preview', // Default to high quality for presentations
-  targetSlideCount: number = 10 // Default to 10
+  imageModel: ImageModelType = 'gemini-3-pro-image-preview',
+  targetSlideCount: number = 10
 ): Promise<PresentationData> => {
   let processedText = text;
-
   if (url) {
     const urlSummary = await summarizeUrlContent(url);
     processedText += `\n\n[External URL Content Summary (${url})]:\n${urlSummary}`;
   }
 
-  const styleInstructions = {
-    professional: "Tone: Professional, Corporate. Theme: Deep Blue/Navy.",
-    comic: "Tone: Energetic, Fun. Theme: Yellow/Black.",
-    digital: "Tone: Tech, Futuristic. Theme: Dark Mode Green.",
-    watercolor: "Tone: Soft, Artistic. Theme: Pastel.",
-    minimalist: "Tone: Concise, Clean. Theme: White/Gray.",
-    custom: `Tone: Match this style: "${customStylePrompt}".`
-  };
-  
-  // Logic to handle high slide counts (concise mode to fit in context window)
-  let conciseInstruction = "";
-  if (targetSlideCount > 20) {
-    conciseInstruction = "IMPORTANT: Since the target slide count is high, keep the 'content' for each slide CONCISE and brief to ensure the JSON output does not get truncated. Do not write long paragraphs.";
-  }
-
-  const textPrompt = `Act as a professional Presentation Designer. 
-  Create a slide deck plan based on the content provided.
-  
-  **Requirements:**
-  1. **Language:** Traditional Chinese (Taiwan).
-  2. **Structure:** Create approximately ${targetSlideCount} slides. Start with a Title Cover, end with a Conclusion.
-  3. **Layouts:** Assign appropriate layouts. IMPORTANT: For complex content like tables, SOP flows, system architecture, or multi-curve graphs that are hard to format as text, USE 'diagram_image' layout. For stats use 'big_number'.
-  4. **Speaker Notes:** Write a natural script for the speaker for EVERY slide.
-  5. **Visuals:** For 'text_and_image', 'title_cover' OR 'diagram_image', provide an English 'imagePrompt'.
-     - For 'diagram_image': The prompt must describe the chart/table/diagram in extreme detail so an AI image generator can draw it perfectly.
-  6. **Style:** ${styleInstructions[style]}
-  ${conciseInstruction}
-  
-  Content:
-  ${processedText.substring(0, 10000)}
-  `;
-
+  const textPrompt = `Professional Presentation Designer. Deck plan for ${targetSlideCount} slides. Language: Traditional Chinese (Taiwan). Style: ${style}. Content: ${processedText.substring(0, 10000)}`;
   const parts: any[] = [{ text: textPrompt }];
-  files.forEach(file => {
-    parts.push({
-      inlineData: { mimeType: file.mimeType, data: file.data }
-    });
-  });
+  files.forEach(file => { parts.push({ inlineData: { mimeType: file.mimeType, data: file.data } }); });
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     contents: { parts },
     config: {
       responseMimeType: "application/json",
@@ -595,45 +450,24 @@ export const generatePresentation = async (
   });
 
   if (!response.text) throw new Error("No response from Gemini");
-
   const data = parseJsonFromResponse(response.text) as PresentationData;
   data.style = style;
-  
-  // Sanitize slides
-  data.slides.forEach(slide => {
-    if (Array.isArray(slide.content)) {
-      slide.content = (slide.content as any).join('\n');
+  data.promptUsed = textPrompt;
+
+  let generatedImageCount = 0;
+  data.slides = await processItemsWithConcurrency(data.slides, 3, async (slide) => {
+    if (slide.imagePrompt) {
+      generatedImageCount++;
+      const imageUrl = await generateSectionImage(slide.imagePrompt, style, imageModel, customStylePrompt);
+      return { ...slide, imageUrl };
     }
-    slide.content = String(slide.content || '');
+    return slide;
   });
 
-  // Generate Images for slides using Concurrency Control
-  let generatedImageCount = 0;
-  data.slides = await processItemsWithConcurrency(
-    data.slides,
-    3,
-    async (slide) => {
-      if (slide.imagePrompt) {
-        generatedImageCount++;
-        const imageUrl = await generateSectionImage(slide.imagePrompt, style, imageModel, customStylePrompt);
-        return { ...slide, imageUrl };
-      }
-      return slide;
-    }
-  );
-
-  // COST ESTIMATION
-  data.costEstimate = estimateCost(
-    textPrompt.length, 
-    response.text.length, 
-    generatedImageCount,
-    imageModel
-  );
-
+  data.costEstimate = estimateCost(textPrompt.length, response.text.length, generatedImageCount, imageModel);
   return data;
 };
 
-// NEW: Refine a specific slide in presentation mode
 export const refinePresentationSlide = async (
   slide: Slide,
   instruction: string,
@@ -641,70 +475,28 @@ export const refinePresentationSlide = async (
   imageModel: ImageModelType,
   customStylePrompt?: string
 ): Promise<Slide> => {
-  
-  // 1. Ask Gemini to update the JSON structure of the slide based on instruction
-  const prompt = `
-  Act as a Presentation Designer. Refine this slide based on the user's instruction.
-  
-  Instruction: "${instruction}"
-  Current Slide JSON: ${JSON.stringify(slide)}
-  Style: ${style}
-  
-  Rules:
-  1. Return ONLY valid JSON of the updated Slide.
-  2. If the instruction implies a visual change (e.g. "change diagram to flow chart", "make the robot blue"), UPDATE the 'imagePrompt' field to reflect this new visual requirement.
-  3. If user wants to ADD AN IMAGE to a text-only slide, CHANGE the 'layout' to 'text_and_image' or 'diagram_image' and provide an 'imagePrompt'.
-  4. If the instruction implies text change, update 'title', 'content', or 'speakerNotes'.
-  5. **IMPORTANT**: 'content' field MUST be a single String. If you have multiple bullet points, join them with newline characters (\\n). Do NOT return an Array.
-  6. Keep 'id' unchanged.
-  7. Language: Traditional Chinese (Taiwan).
-  8. **CRITICAL**: If you update any colors, use HEX format (e.g. "#FF0000"). DO NOT use color names like "科技藍" or "Red".
-  `;
-
+  const prompt = `Refine this slide: ${instruction}. Current: ${JSON.stringify(slide)}. Style: ${style}. Language: Traditional Chinese (Taiwan).`;
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     contents: prompt,
-    config: {
-      responseMimeType: "application/json"
-    }
+    config: { responseMimeType: "application/json" }
   });
 
   if (!response.text) throw new Error("Refinement failed");
-  
   let updatedSlide = parseJsonFromResponse(response.text) as Slide;
-
-  // Handle potential "result" wrapper if AI hallucinates schema
-  if ((updatedSlide as any).result) {
-    updatedSlide = (updatedSlide as any).result;
-  }
-
-  // SAFETY: Ensure content is a string
-  if (Array.isArray(updatedSlide.content)) {
-    updatedSlide.content = (updatedSlide.content as any).join('\n');
-  }
-  updatedSlide.content = String(updatedSlide.content || '');
-
-  // 2. Check if imagePrompt has changed OR if layout changed to a visual one from non-visual.
-  // We compare with original slide.imagePrompt
-  const isImagePromptChanged = updatedSlide.imagePrompt && updatedSlide.imagePrompt !== slide.imagePrompt;
-  const isLayoutVisualized = (slide.layout === 'bullet_list' || slide.layout === 'big_number') && 
-                             (updatedSlide.layout === 'text_and_image' || updatedSlide.layout === 'diagram_image');
+  if ((updatedSlide as any).result) updatedSlide = (updatedSlide as any).result;
   
-  if (isImagePromptChanged || isLayoutVisualized) {
-     try {
-       // Also use retry logic here
-       const newImageUrl = await generateSectionImage(updatedSlide.imagePrompt!, style, imageModel, customStylePrompt);
-       updatedSlide.imageUrl = newImageUrl || slide.imageUrl; // Fallback to old image if gen fails
-     } catch (e) {
-       console.error("Refine image gen failed", e);
-       updatedSlide.imageUrl = slide.imageUrl; // Keep old image
-     }
+  if (updatedSlide.imagePrompt && updatedSlide.imagePrompt !== slide.imagePrompt) {
+    try {
+      const newImageUrl = await generateSectionImage(updatedSlide.imagePrompt!, style, imageModel, customStylePrompt);
+      updatedSlide.imageUrl = newImageUrl || slide.imageUrl;
+    } catch (e) {
+      updatedSlide.imageUrl = slide.imageUrl;
+    }
   } else {
-    // Keep existing image if prompt didn't change
     updatedSlide.imageUrl = slide.imageUrl;
   }
-
   return updatedSlide;
 };
 
@@ -714,163 +506,50 @@ export const refineInfographicSection = async (
   sectionId: string | null,
   instruction: string
 ): Promise<InfographicData> => {
-  
   const newData = { ...originalData };
-  let targetContext = "";
-  
-  if (sectionType === 'title') targetContext = `Main Title: ${newData.mainTitle}`;
-  else if (sectionType === 'subtitle') targetContext = `Subtitle: ${newData.subtitle}`;
-  else if (sectionType === 'conclusion') targetContext = `Conclusion: ${newData.conclusion}`;
-  else if (sectionType === 'section' && sectionId) {
-    const sec = newData.sections.find(s => s.id === sectionId);
-    targetContext = JSON.stringify(sec);
-  } else if (sectionType === 'statistic' && sectionId) {
-    const stat = newData.statistics.find(s => s.id === sectionId);
-    targetContext = JSON.stringify(stat);
-  }
-
-  const prompt = `Refine this infographic part (Style: ${originalData.style}). 
-  Instruction: "${instruction}".
-  Current Content: ${targetContext}
-  Return JSON with updated fields. Keep Traditional Chinese.`;
-
+  const prompt = `Refine infographic section: ${instruction}. Return JSON. Language: Traditional Chinese.`;
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-    }
+    config: { responseMimeType: "application/json" }
   });
-
   if (!response.text) throw new Error("Failed to refine content");
-  
   const result = parseJsonFromResponse(response.text);
-
   if (sectionType === 'title') newData.mainTitle = result.result || result.mainTitle;
-  else if (sectionType === 'subtitle') newData.subtitle = result.result || result.subtitle;
-  else if (sectionType === 'conclusion') newData.conclusion = result.result || result.conclusion;
-  else if (sectionType === 'section' && sectionId) {
-    newData.sections = newData.sections.map(s => s.id === sectionId ? { ...s, ...result, imageUrl: s.imageUrl } : s);
-  } else if (sectionType === 'statistic' && sectionId) {
-    newData.statistics = newData.statistics.map(s => s.id === sectionId ? { ...s, ...result } : s);
-  }
-
+  else if (sectionType === 'section' && sectionId) newData.sections = newData.sections.map(s => s.id === sectionId ? { ...s, ...result } : s);
   return newData;
 };
 
-// NEW: Transform the entire infographic content (Translate, Summarize, Expand)
 export const transformInfographic = async (
   currentData: InfographicData,
   instruction: string
 ): Promise<InfographicData> => {
-  
-  // Create a lightweight version of data to reduce token count (exclude images/base64)
-  const dataForPrompt = {
-    ...currentData,
-    sections: currentData.sections.map(({ imageUrl, ...rest }) => rest), // Remove images
-    charts: currentData.charts // Include charts
-  };
-
-  const prompt = `
-  Act as an expert content editor.
-  
-  Goal: Transform the following JSON content based on this instruction: "${instruction}".
-  
-  Rules:
-  1. PRESERVE the exact JSON structure (mainTitle, subtitle, sections, etc.).
-  2. ONLY modify the text values (content, titles, labels) based on the instruction.
-  3. Do NOT translate technical keys (id, iconType, layout, style).
-  4. Ensure the output is valid JSON.
-  
-  Input JSON:
-  ${JSON.stringify(dataForPrompt)}
-  `;
-
-  try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: infographicSchema
-      }
-    });
-
-    if (!response.text) throw new Error("Transformation failed");
-    
-    const transformedData = parseJsonFromResponse(response.text) as InfographicData;
-    
-    // Merge back the images from the original data
-    const mergedSections = transformedData.sections.map(newSec => {
-      const originalSec = currentData.sections.find(s => s.id === newSec.id);
-      return {
-        ...newSec,
-        imageUrl: originalSec?.imageUrl || undefined
-      };
-    });
-
-    return {
-      ...transformedData,
-      style: currentData.style, // Preserve style
-      themeColor: currentData.themeColor, // Preserve color
-      sections: mergedSections
-    };
-
-  } catch (e) {
-    console.error("Transformation error", e);
-    throw e;
-  }
+  const prompt = `Transform JSON based on instruction: ${instruction}. Keep structure. Language: Traditional Chinese. Data: ${JSON.stringify(currentData)}`;
+  const ai = getAI();
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: { responseMimeType: "application/json", responseSchema: infographicSchema }
+  });
+  if (!response.text) throw new Error("Transformation failed");
+  const transformedData = parseJsonFromResponse(response.text) as InfographicData;
+  return { ...transformedData, themeColor: currentData.themeColor };
 };
 
-// NEW: Generate social media captions
 export const generateSocialCaption = async (
   data: InfographicData,
   platform: SocialPlatform
 ): Promise<string> => {
-  
-  // Lightweight data summary for prompt
-  const summary = {
-    title: data.mainTitle,
-    subtitle: data.subtitle,
-    keyPoints: data.sections.map(s => s.title),
-    stats: data.statistics.map(s => `${s.label}: ${s.value}`),
-    conclusion: data.conclusion
-  };
-
-  const platformInstructions = {
-    instagram: "Write a catchy caption for Instagram. Use 10-15 relevant hashtags. Be engaging and visual. Include emojis.",
-    linkedin: "Write a professional post for LinkedIn. Focus on industry insights, key takeaways, and engagement. Use a few professional hashtags.",
-    twitter: "Write a thread of 3 short tweets or a single impactful tweet (max 280 chars). Focus on the hook and value.",
-    facebook: "Write an engaging post for Facebook. Encourage sharing and discussion. Tone should be friendly yet informative."
-  };
-
-  const prompt = `
-  Act as a social media expert.
-  Write a caption for ${platform} based on this infographic data.
-  
-  Platform Rule: ${platformInstructions[platform]}
-  Language: Traditional Chinese (Taiwan).
-  
-  Data:
-  ${JSON.stringify(summary)}
-  `;
-
-  try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt
-    });
-    return response.text || "Failed to generate caption.";
-  } catch (e) {
-    console.error("Caption generation failed", e);
-    return "Error generating caption.";
-  }
+  const prompt = `Write a caption for ${platform} based on infographic. Language: Traditional Chinese. Data: ${data.mainTitle}`;
+  const ai = getAI();
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt
+  });
+  return response.text || "Failed to generate caption.";
 };
 
-// NEW: Generate Comic Script and Images
 export const generateComicScript = async (
   text: string, 
   style: InfographicStyle,
@@ -879,101 +558,29 @@ export const generateComicScript = async (
   customStylePrompt?: string,
   targetPanelCount: number = 4
 ): Promise<ComicData> => {
-  
-  let processedText = text;
-
-  // If URL is provided, summarize it first and append to text
-  if (url) {
-    const urlSummary = await summarizeUrlContent(url);
-    processedText += `\n\n[External URL Content Summary (${url})]:\n${urlSummary}`;
-  }
-
-  const styleDescription = style === 'custom' ? customStylePrompt : style;
-
-  const prompt = `
-  Act as a Comic Book Writer and Director.
-  Create a comic script based on the provided content.
-  
-  Requirements:
-  1. **Character Consistency**: First, define a "Character Visual Bible". Describe the main character(s) in extreme detail (hair, clothes, accessories, face) so that an image generator can draw them identically in every panel.
-  2. **Script**: Create exactly ${targetPanelCount} panels.
-  3. **Visuals**: For each panel, provide a detailed 'imagePrompt' that includes the action AND the setting. Do NOT repeat the character description here (we will inject it programmatically), just refer to "the main character".
-  4. **Camera**: Specify the camera angle (e.g. Close-up, Wide shot).
-  5. **Language**: Traditional Chinese for dialogue and titles. English for image prompts.
-  6. **Style**: ${styleDescription}
-  
-  Content:
-  ${processedText.substring(0, 10000)}
-  `;
-
-  const parts: any[] = [{ text: prompt }];
-  files.forEach(file => {
-    parts.push({
-      inlineData: { mimeType: file.mimeType, data: file.data }
-    });
-  });
-
+  const prompt = `Comic script with ${targetPanelCount} panels. Language: Traditional Chinese. Style: ${style}. Content: ${text.substring(0, 5000)}`;
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: { parts },
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: comicSchema
-    },
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: { responseMimeType: "application/json", responseSchema: comicSchema }
   });
-
   if (!response.text) throw new Error("No response from Gemini");
-
   const data = parseJsonFromResponse(response.text) as ComicData;
   data.style = style;
-  
-  // Cost Estimate for Script
-  data.costEstimate = estimateCost(prompt.length, response.text.length, 0, 'gemini-2.5-flash-image');
-
   return data;
 };
 
-// NEW: Batch Generate Images for Comic with Consistency
 export const generateComicImages = async (
   data: ComicData,
   imageModel: ImageModelType,
   customStylePrompt?: string
 ): Promise<ComicData> => {
-  
   let generatedImageCount = 0;
-
-  // Inject the Character Visual Bible into every panel prompt
-  // Process with concurrency to handle 8/16 panels
-  const updatedPanels = await processItemsWithConcurrency(
-    data.panels,
-    3, // 3 at a time
-    async (panel) => {
-      generatedImageCount++;
-      // The generateSectionImage function now supports character injection
-      const imageUrl = await generateSectionImage(
-        panel.imagePrompt,
-        data.style,
-        imageModel,
-        customStylePrompt,
-        data.characterVisualBible // Pass the bible
-      );
-      return { ...panel, imageUrl };
-    }
-  );
-
-  const updatedData = { ...data, panels: updatedPanels };
-  
-  // Update cost estimate to include images
-  if (updatedData.costEstimate) {
-    const additionalCost = estimateCost(0, 0, generatedImageCount, imageModel);
-    updatedData.costEstimate.totalCost += additionalCost.totalCost;
-    updatedData.costEstimate.breakdown.imageCount += generatedImageCount;
-    updatedData.costEstimate.breakdown.imageGeneration += additionalCost.breakdown.imageGeneration;
-    updatedData.costEstimate.breakdown.imageModel = imageModel;
-  } else {
-    updatedData.costEstimate = estimateCost(0, 0, generatedImageCount, imageModel);
-  }
-
-  return updatedData;
+  const updatedPanels = await processItemsWithConcurrency(data.panels, 3, async (panel) => {
+    generatedImageCount++;
+    const imageUrl = await generateSectionImage(panel.imagePrompt, data.style, imageModel, customStylePrompt, data.characterVisualBible);
+    return { ...panel, imageUrl };
+  });
+  return { ...data, panels: updatedPanels };
 };
